@@ -7,6 +7,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
@@ -16,6 +17,8 @@ import java.util.Hashtable;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Properties;
+
+import com.soffid.iam.api.AccountStatus;
 
 import es.caib.seycon.ng.comu.Account;
 import es.caib.seycon.ng.comu.ControlAcces;
@@ -574,9 +577,12 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		rolePassword = Password.decode(getDispatcher().getParam3());
 		// Verifiramos que estén creadas las tablas y los triggers
 		try {
-			createAccessControl();
-			// Obtenim les regles i activem els triggers si correspon
-			updateAccessControl();
+			if (Boolean.TRUE.equals( getDispatcher().getControlAccess()))
+			{
+				createAccessControl();
+				// Obtenim les regles i activem els triggers si correspon
+				updateAccessControl();
+			}
 		} catch (Throwable th) {
 			log.warn("Error in the access control verification", th); //$NON-NLS-1$
 			try {
@@ -634,6 +640,9 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 							password.getPassword());
 				}
 				hash.put(this.getDispatcher().getCodi(), conn);
+				Statement stmt = conn.createStatement();
+				stmt.executeQuery("set role all");
+				stmt.close();
 			} catch (SQLException e) {
 				e.printStackTrace();
 				throw new InternalErrorException(
@@ -686,11 +695,10 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 	 * @throws InternalErrorException
 	 *             cualquier otro problema
 	 */
-	public void updateUser(String codiCompte, Usuari usu)
+	public void updateUser(String user, Usuari usu)
 			throws java.rmi.RemoteException,
 			es.caib.seycon.ng.exception.InternalErrorException {
 		// boolean active;
-		String user = usu.getCodi();
 		PreparedStatement stmt = null;
 		PreparedStatement stmt2 = null;
 		ResultSet rset = null;
@@ -708,31 +716,13 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 
 		try {
 			// Obtener los datos del usuario
-			roles = getServer().getAccountRoles(codiCompte,
+			roles = getServer().getAccountRoles(user,
 					this.getDispatcher().getCodi());
 
-			if (getDispatcher().getBasRol()) {
-				// System.out.println (getName () + "Solo Roles");
-				groups = null;
-			} else {
-				// System.out.println (getName () + "Roles y Grupos");
-				groups = getServer().getUserGroups(usu.getId());
-			}
+			groups = null;
 			groupsAndRoles = concatUserGroupsAndRoles(groups, roles);
 
 			Connection sqlConnection = getConnection();
-
-			// Comprobamos que exista la tabla de roles de control de acceso
-			stmtCAC = sqlConnection
-					.prepareStatement("select 1 from user_tables where table_name ='SC_OR_ROLE'"); //$NON-NLS-1$
-			rsetCAC = stmtCAC.executeQuery();
-
-			if (rsetCAC.next()) {
-				cacActivo = true; // la tabla existe (no miramos si está activo
-									// o no, nos da igual)
-			}
-			rsetCAC.close();
-			stmtCAC.close();
 
 			// Comprobar si el usuario existe
 			stmt = sqlConnection
@@ -749,7 +739,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 
 				String cmd = "CREATE USER \"" + user.toUpperCase() + "\" IDENTIFIED BY \"" + //$NON-NLS-1$ //$NON-NLS-2$
 						pass.getPassword() + "\" TEMPORARY TABLESPACE TEMP " + //$NON-NLS-1$
-						"DEFAULT TABLESPACE USERS "; //$NON-NLS-1$
+						"DEFAULT TABLESPACE USERS ACCOUNT UNLOCK"; //$NON-NLS-1$
 				stmt = sqlConnection.prepareStatement(cmd);
 				stmt.execute();
 			}
@@ -760,6 +750,11 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			// passada a removeUser()
 			stmt = sqlConnection
 					.prepareStatement("GRANT CREATE SESSION TO  \"" + user.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$
+			stmt.execute();
+			stmt.close();
+
+			stmt = sqlConnection
+					.prepareStatement("ALTER USER \"" + user.toUpperCase() + "\" ACCOUNT UNLOCK"); //$NON-NLS-1$ //$NON-NLS-2$
 			stmt.execute();
 			stmt.close();
 
@@ -787,28 +782,6 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			stmt.close();
 
 			String rolesPorDefecto = null;
-			// Crear los grupos si son necesarios
-			for (Grup g : groups) {
-				if (g != null) {
-					if (rolesPorDefecto == null)
-						rolesPorDefecto = "\"" + g.getCodi().toUpperCase() + "\""; //$NON-NLS-1$ //$NON-NLS-2$
-					else
-						rolesPorDefecto = rolesPorDefecto
-								+ ",\"" + g.getCodi().toUpperCase() + "\""; //$NON-NLS-1$ //$NON-NLS-2$
-					stmt = sqlConnection
-							.prepareStatement("SELECT 1 FROM SYS.DBA_ROLES WHERE ROLE=?"); //$NON-NLS-1$
-					stmt.setString(1, g.getCodi().toUpperCase());
-					rset = stmt.executeQuery();
-					if (!rset.next()) {
-						// Password protected or not
-						stmt2.execute("CREATE ROLE \"" + g.getCodi().toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$
-						// Revoke a mi mismo
-						stmt2.execute("REVOKE \"" + g.getCodi().toUpperCase() + "\" FROM \"" + this.user.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
-					}
-					rset.close();
-					stmt.close();
-				}
-			}
 
 			// Crear los roles si son necesarios
 			for (RolGrant r : roles) {
@@ -834,16 +807,6 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 						stmt2.execute(command);
 						// Revoke de mi mismo
 						stmt2.execute("REVOKE \"" + r.getRolName().toUpperCase() + "\" FROM \"" + this.user.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
-					} else {
-						String command = "ALTER ROLE \"" + r.getRolName().toUpperCase() + "\""; //$NON-NLS-1$ //$NON-NLS-2$
-						if (getServer().getRoleInfo(r.getRolName(),
-								r.getDispatcher()).getContrasenya())
-							command = command + " IDENTIFIED BY \"" + //$NON-NLS-1$
-									rolePassword.getPassword() + "\""; //$NON-NLS-1$
-						else
-							command = command + " NOT IDENTIFIED"; //$NON-NLS-1$
-							// System.out.println (command);
-						stmt2.execute(command);
 					}
 					rset.close();
 					stmt.close();
@@ -872,8 +835,8 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 
 			// Insertamos en la tabla de roles para CONTROL DE ACCESO (¿solo si
 			// el usuario está activo??)
-			if (true /* cacActivo */) { // Lo activamos por defecto (para que no
-										// haya que propagar todos los usuarios)
+			if (Boolean.TRUE.equals( getDispatcher().getControlAccess()))
+			{
 				String[] grupsAndRolesCAC = concatUserGroupsAndRoles(groups,
 						roles);
 				HashSet grupsAndRolesHash = (grupsAndRolesCAC != null && grupsAndRolesCAC.length != 0) ? new HashSet(
@@ -980,7 +943,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			if (rset.next() && password.getPassword().length() > 0) {
 				stmt.close();
 				cmd = "ALTER USER \"" + user.toUpperCase() + "\" IDENTIFIED BY \"" + //$NON-NLS-1$ //$NON-NLS-2$
-						password.getPassword() + "\""; //$NON-NLS-1$
+						password.getPassword() + "\" ACCOUNT UNLOCK"; //$NON-NLS-1$
 				stmt = sqlConnection.prepareStatement(cmd);
 				stmt.execute();
 			}
@@ -1113,9 +1076,10 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 						// sobre qui té atorgat aquest rol.. no posem res a
 						// sc_or_role
 					}
-				} else // ja existeix a la bbdd
+				}
+				if (Boolean.TRUE.equals( getDispatcher().getControlAccess()))
 				{
-					if (ri != null) {
+					if (ri != null ) {
 						// Afegim informació dels usuaris que actualment tenen
 						// atorgat el rol a la bbdd (la info no és completa
 						// però és consistent amb el rol de bbdd)
@@ -1408,7 +1372,10 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 
 	public Collection<LogEntry> getLogFromDate(Date From)
 			throws RemoteException, InternalErrorException {
-
+		DispatcherAccessControl dispatcherInfo = getServer().getDispatcherAccessControl(
+				this.getDispatcher().getId());
+		if ( !  dispatcherInfo.getControlAccessActiu())
+			return null;
 		PreparedStatement stmt = null;
 		ResultSet rset = null;
 		// ArrayList<LogEntry> logs = new ArrayList<LogEntry>();
@@ -1533,26 +1500,49 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 	public void removeUser(String arg0) throws RemoteException,
 			es.caib.seycon.ng.exception.InternalErrorException {
 		try {
-			Connection sqlConnection = getConnection();
-			PreparedStatement stmt = null;
-			stmt = sqlConnection
-					.prepareStatement("REVOKE CREATE SESSION FROM \"" + arg0.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$
-			try {
-				stmt.execute();
-			} catch (SQLException e) {
-			} finally {
-				stmt.close();
-			}
-			// Borramos las referencias de la tabla de control de acceso
-			if (true/* cacActivo */) { // Lo activamos por defecto
+			Account account = getServer().getAccountInfo(arg0, getCodi());
+			if (account == null || account.getStatus() == AccountStatus.REMOVED)
+			{
+				log.info("Dropping user "+arg0);
+				Connection sqlConnection = getConnection();
+				PreparedStatement stmt = null;
 				stmt = sqlConnection
-						.prepareStatement("DELETE FROM SC_OR_ROLE WHERE SOR_GRANTEE='" //$NON-NLS-1$
-								+ arg0.toUpperCase() + "'"); //$NON-NLS-1$
+						.prepareStatement("DROP USER \"" + arg0.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$
 				try {
 					stmt.execute();
 				} catch (SQLException e) {
 				} finally {
 					stmt.close();
+				}
+			}
+			else
+			{
+				Connection sqlConnection = getConnection();
+				PreparedStatement stmt = null;
+				stmt = sqlConnection
+						.prepareStatement("REVOKE CREATE SESSION FROM \"" + arg0.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$
+				try {
+					stmt.execute();
+				} catch (SQLException e) {
+				} finally {
+					stmt.close();
+				}
+				stmt = sqlConnection
+						.prepareStatement("ALTER USER \"" + user.toUpperCase() + "\" ACCOUNT LOCK"); //$NON-NLS-1$ //$NON-NLS-2$
+				stmt.execute();
+				stmt.close();
+
+				// Borramos las referencias de la tabla de control de acceso
+				if (true/* cacActivo */) { // Lo activamos por defecto
+					stmt = sqlConnection
+							.prepareStatement("DELETE FROM SC_OR_ROLE WHERE SOR_GRANTEE='" //$NON-NLS-1$
+									+ arg0.toUpperCase() + "'"); //$NON-NLS-1$
+					try {
+						stmt.execute();
+					} catch (SQLException e) {
+					} finally {
+						stmt.close();
+					}
 				}
 			}
 		} catch (Exception e) {
@@ -1612,7 +1602,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 
 				String cmd = "CREATE USER \"" + nom.toUpperCase() + "\" IDENTIFIED BY \"" + //$NON-NLS-1$ //$NON-NLS-2$
 						pass.getPassword() + "\" TEMPORARY TABLESPACE TEMP " + //$NON-NLS-1$
-						"DEFAULT TABLESPACE USERS "; //$NON-NLS-1$
+						"DEFAULT TABLESPACE USERS ACCOUNT UNLOCK "; //$NON-NLS-1$
 				stmt = sqlConnection.prepareStatement(cmd);
 				stmt.execute();
 			}
