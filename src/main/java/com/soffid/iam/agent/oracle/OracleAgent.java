@@ -53,6 +53,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 	transient String db;
 	/** Contraseña con la que proteger el rol */
 	transient Password rolePassword;
+	private String defaultProfile;
 	/**
 	 * Hash de conexiones ya establecidas. De esta forma se evita que el agente
 	 * seycon abra conexiones sin control debido a problemas de comunicaciones
@@ -575,6 +576,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		password = Password.decode(getDispatcher().getParam1());
 		db = getDispatcher().getParam2();
 		rolePassword = Password.decode(getDispatcher().getParam3());
+		defaultProfile = getDispatcher().getParam4();
 		// Verifiramos que estén creadas las tablas y los triggers
 		try {
 			if (Boolean.TRUE.equals( getDispatcher().getControlAccess()))
@@ -737,7 +739,14 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				Password pass = getServer().getOrGenerateUserPassword(user,
 						getDispatcher().getCodi());
 
-				String cmd = "CREATE USER \"" + user.toUpperCase() + "\" IDENTIFIED BY \"" + //$NON-NLS-1$ //$NON-NLS-2$
+				String cmd;
+				if (defaultProfile != null && ! defaultProfile.trim().isEmpty())
+					cmd = "CREATE USER \"" + user.toUpperCase() + "\" IDENTIFIED BY \"" + //$NON-NLS-1$ //$NON-NLS-2$
+							pass.getPassword() + "\"" +
+							" PROFILE "+defaultProfile+" TEMPORARY TABLESPACE TEMP " + //$NON-NLS-1$
+							"DEFAULT TABLESPACE USERS ACCOUNT UNLOCK"; //$NON-NLS-1$
+				else
+					cmd = "CREATE USER \"" + user.toUpperCase() + "\" IDENTIFIED BY \"" + //$NON-NLS-1$ //$NON-NLS-2$
 						pass.getPassword() + "\" TEMPORARY TABLESPACE TEMP " + //$NON-NLS-1$
 						"DEFAULT TABLESPACE USERS ACCOUNT UNLOCK"; //$NON-NLS-1$
 				stmt = sqlConnection.prepareStatement(cmd);
