@@ -54,6 +54,8 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 	/** Contraseña con la que proteger el rol */
 	transient Password rolePassword;
 	private String defaultProfile;
+	/** Valor que activa o desactiva el debug */
+	transient boolean debug;
 	/**
 	 * Hash de conexiones ya establecidas. De esta forma se evita que el agente
 	 * seycon abra conexiones sin control debido a problemas de comunicaciones
@@ -131,7 +133,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				stmt = sqlConnection.prepareStatement(cmd);
 				stmt.execute();
 				stmt.close();
-				log.info("Created table 'SC_OR_ACCLOG', year {}", anyo, null); //$NON-NLS-1$
+				if (debug) log.info("Created table 'SC_OR_ACCLOG', year {}", anyo, null); //$NON-NLS-1$
 			}
 			rsetCAC.close();
 			stmtCAC.close();
@@ -154,7 +156,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				stmt = sqlConnection.prepareStatement(cmd);
 				stmt.execute();
 				stmt.close();
-				log.info("Created table 'SC_OR_CONACC'", null, null); //$NON-NLS-1$
+				if (debug) log.info("Created table 'SC_OR_CONACC'", null, null); //$NON-NLS-1$
 			}
 			rsetCAC.close();
 			stmtCAC.close();
@@ -175,7 +177,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				stmt = sqlConnection.prepareStatement(cmd);
 				stmt.execute();
 				stmt.close();
-				log.info("Created table 'SC_OR_ROLE'", null, null); //$NON-NLS-1$
+				if (debug) log.info("Created table 'SC_OR_ROLE'", null, null); //$NON-NLS-1$
 			}
 			rsetCAC.close();
 			stmtCAC.close();
@@ -193,7 +195,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				stmt = sqlConnection.prepareStatement(cmd);
 				stmt.execute();
 				stmt.close();
-				log.info("Created table 'SC_OR_VERSIO'", null, null); //$NON-NLS-1$
+				if (debug) log.info("Created table 'SC_OR_VERSIO'", null, null); //$NON-NLS-1$
 			}
 			rsetCAC.close();
 			stmtCAC.close();
@@ -216,8 +218,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				stmt.setString(1, VERSIO);
 				stmt.execute();
 				stmt.close();
-				log.info(
-						"Detected different agent version, triggers will be updated", null, null); //$NON-NLS-1$
+				if (debug) log.info("Detected different agent version, triggers will be updated", null, null); //$NON-NLS-1$
 			} else {
 				String versioActual = rsetCAC.getString(1);
 				if (!VERSIO.equals(versioActual)) {
@@ -230,8 +231,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 
 					stmt.execute();
 					stmt.close();
-					log.info(
-							"Detected different agent version, triggers will be updated", null, null); //$NON-NLS-1$
+					if (debug) log.info("Detected different agent version, triggers will be updated", null, null); //$NON-NLS-1$
 				}
 			}
 			rsetCAC.close();
@@ -253,8 +253,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 							.prepareStatement("alter trigger logon_audit_trigger disable"); //$NON-NLS-1$
 					stmt.execute();
 					stmt.close();
-					log.info(
-							"Disabled 'LOGON_AUDIT_TRIGGER' to updated it", null, null); //$NON-NLS-1$
+					if (debug) log.info("Disabled 'LOGON_AUDIT_TRIGGER' to updated it", null, null); //$NON-NLS-1$
 				}
 
 				// Creamos o reemplazamos el TRIGGER:
@@ -433,8 +432,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 						.prepareStatement("alter trigger logon_audit_trigger disable"); //$NON-NLS-1$
 				stmt.execute();
 				stmt.close();
-				log.info(
-						"Trigger 'LOGON_AUDIT_TRIGGER' created and disabled", null, null); //$NON-NLS-1$
+				if (debug) log.info("Trigger 'LOGON_AUDIT_TRIGGER' created and disabled", null, null); //$NON-NLS-1$
 			}
 			rsetCAC.close();
 			stmtCAC.close();
@@ -454,8 +452,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 							.prepareStatement("alter trigger LOGOFF_AUDIT_TRIGGER disable"); //$NON-NLS-1$
 					stmt.execute();
 					stmt.close();
-					log.info(
-							"Disabled 'LOGOFF_AUDIT_TRIGGER' to update it", null, null); //$NON-NLS-1$
+					if (debug) log.info("Disabled 'LOGOFF_AUDIT_TRIGGER' to update it", null, null); //$NON-NLS-1$
 				}
 
 				// Creamos o reemplazamos el TRIGGER:
@@ -535,8 +532,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 						.prepareStatement("alter trigger LOGOFF_AUDIT_TRIGGER disable"); //$NON-NLS-1$
 				stmt.execute();
 				stmt.close();
-				log.info("Trigger 'LOGOFF_AUDIT_TRIGGER' created and disabled",
-						null, null);
+				if (debug) log.info("Trigger 'LOGOFF_AUDIT_TRIGGER' created and disabled",null, null);
 			}
 			rsetCAC.close();
 			stmtCAC.close();
@@ -576,7 +572,15 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		password = Password.decode(getDispatcher().getParam1());
 		db = getDispatcher().getParam2();
 		rolePassword = Password.decode(getDispatcher().getParam3());
-		defaultProfile = getDispatcher().getParam4();
+		debug = "true".equals(getDispatcher().getParam4());
+		defaultProfile = getDispatcher().getParam5();
+		if (debug) {
+			log.info("user: "+user);
+			log.info("password: ********");
+			log.info("db: "+db);
+			log.info("rolePassword: ********");
+			log.info("debug: "+debug);
+		}
 		// Verifiramos que estén creadas las tablas y los triggers
 		try {
 			if (Boolean.TRUE.equals( getDispatcher().getControlAccess()))
@@ -586,7 +590,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				updateAccessControl();
 			}
 		} catch (Throwable th) {
-			log.warn("Error in the access control verification", th); //$NON-NLS-1$
+			if (debug) log.warn("Error in the access control verification", th); //$NON-NLS-1$
 			try {
 				// Si hay error desactivamos los triggers (por si acaso)
 				setAccessControlActive(false);
@@ -665,7 +669,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 	 */
 	public void handleSQLException(SQLException e)
 			throws InternalErrorException {
-		log.warn(this.getDispatcher().getCodi() + " SQL Exception: ", e); //$NON-NLS-1$
+		if (debug) log.warn(this.getDispatcher().getCodi() + " SQL Exception: ", e); //$NON-NLS-1$
 		if (e.getMessage().indexOf("Broken pipe") > 0) { //$NON-NLS-1$
 			releaseConnection();
 		}
@@ -700,6 +704,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 	public void updateUser(String user, Usuari usu)
 			throws java.rmi.RemoteException,
 			es.caib.seycon.ng.exception.InternalErrorException {
+		if (debug) log.info("updateUser(String user, Usuari usu)");
 		// boolean active;
 		PreparedStatement stmt = null;
 		PreparedStatement stmt2 = null;
@@ -730,6 +735,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			stmt = sqlConnection
 					.prepareStatement("SELECT 1 FROM SYS.DBA_USERS WHERE USERNAME=?"); //$NON-NLS-1$
 			stmt.setString(1, user.toUpperCase());
+			if (debug) log.info("SQL1 = SELECT 1 FROM SYS.DBA_USERS WHERE USERNAME="+user.toUpperCase());
 			rset = stmt.executeQuery();
 			// Determinar si el usuario está o no activo
 			// Si no existe darlo de alta
@@ -750,20 +756,22 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 						pass.getPassword() + "\" TEMPORARY TABLESPACE TEMP " + //$NON-NLS-1$
 						"DEFAULT TABLESPACE USERS ACCOUNT UNLOCK"; //$NON-NLS-1$
 				stmt = sqlConnection.prepareStatement(cmd);
+				if (debug) log.info("SQL2 = "+cmd);
 				stmt.execute();
 			}
 			// System.out.println ("Usuario "+user+" ya existe");
 			rset.close();
 			stmt.close();
-			// Dar o revocar permiso de create session : La part de revocar
 			// passada a removeUser()
 			stmt = sqlConnection
 					.prepareStatement("GRANT CREATE SESSION TO  \"" + user.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$
+			if (debug) log.info("SQL3 = GRANT CREATE SESSION TO  \"" + user.toUpperCase() + "\"");
 			stmt.execute();
 			stmt.close();
 
 			stmt = sqlConnection
 					.prepareStatement("ALTER USER \"" + user.toUpperCase() + "\" ACCOUNT UNLOCK"); //$NON-NLS-1$ //$NON-NLS-2$
+			if (debug) log.info("SQL4 = ALTER USER \"" + user.toUpperCase() + "\" ACCOUNT UNLOCK");
 			stmt.execute();
 			stmt.close();
 
@@ -940,6 +948,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 	public void updateUserPassword(String user, Usuari arg1, Password password,
 			boolean mustchange)
 			throws es.caib.seycon.ng.exception.InternalErrorException {
+		if (debug) log.info("updateUserPassword");
 		PreparedStatement stmt = null;
 		String cmd = ""; //$NON-NLS-1$
 		try {
@@ -948,12 +957,15 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			stmt = sqlConnection
 					.prepareStatement("SELECT USERNAME FROM SYS.DBA_USERS " + //$NON-NLS-1$
 							"WHERE USERNAME='" + user.toUpperCase() + "'"); //$NON-NLS-1$ //$NON-NLS-2$
+			if (debug) log.info("SQL1 = SELECT USERNAME FROM SYS.DBA_USERS " + //$NON-NLS-1$
+							"WHERE USERNAME='" + user.toUpperCase() + "'");
 			ResultSet rset = stmt.executeQuery();
 			if (rset.next() && password.getPassword().length() > 0) {
 				stmt.close();
 				cmd = "ALTER USER \"" + user.toUpperCase() + "\" IDENTIFIED BY \"" + //$NON-NLS-1$ //$NON-NLS-2$
 						password.getPassword() + "\" ACCOUNT UNLOCK"; //$NON-NLS-1$
 				stmt = sqlConnection.prepareStatement(cmd);
+				if (debug) log.info("SQL2 = "+cmd);
 				stmt.execute();
 			}
 		} catch (SQLException e) {
@@ -1129,7 +1141,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			Connection sqlConnection = getConnection();
 			// Activamos los triggers de logon y de loggoff
 			String estado = active ? "ENABLE" : "DISABLE"; //$NON-NLS-1$ //$NON-NLS-2$
-			log.info("Activated access control " + active, null, null); //$NON-NLS-1$
+			if (debug) log.info("Activated access control " + active, null, null); //$NON-NLS-1$
 
 			// LOGON
 			stmtCAC = sqlConnection
@@ -1141,10 +1153,9 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				stmt = sqlConnection.prepareStatement(cmd);
 				stmt.execute();
 				stmt.close();
-				log.info(
-						"Establish 'LOGON_AUDIT_TRIGGER' as " + estado, null, null); //$NON-NLS-1$
+				if (debug) log.info("Establish 'LOGON_AUDIT_TRIGGER' as " + estado, null, null); //$NON-NLS-1$
 			} else {
-				log.warn("The trigger 'LOGON_AUDIT_TRIGGER' does not exists"); //$NON-NLS-1$
+				if (debug) log.warn("The trigger 'LOGON_AUDIT_TRIGGER' does not exists"); //$NON-NLS-1$
 			}
 			rsetCAC.close();
 			stmtCAC.close();
@@ -1158,10 +1169,9 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				stmt = sqlConnection.prepareStatement(cmd);
 				stmt.execute();
 				stmt.close();
-				log.info(
-						"Establish 'LOGOFF_AUDIT_TRIGGER' as" + estado, null, null); //$NON-NLS-1$
+				if (debug) log.info("Establish 'LOGOFF_AUDIT_TRIGGER' as" + estado, null, null); //$NON-NLS-1$
 			} else {
-				log.warn("The trigger 'LOGOFF_AUDIT_TRIGGER' does not exists"); //$NON-NLS-1$
+				if (debug) log.warn("The trigger 'LOGOFF_AUDIT_TRIGGER' does not exists"); //$NON-NLS-1$
 			}
 			rsetCAC.close();
 			stmtCAC.close();
@@ -1398,7 +1408,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			if (From != null)
 				consulta += "WHERE SAC_LOGON_DAY>=? "; //$NON-NLS-1$
 			consulta += " order by SAC_LOGON_DAY "; //$NON-NLS-1$
-			log.info("consulta: "+consulta);
+			if (debug) log.info("consulta: "+consulta);
 			stmt = sqlConnection.prepareStatement(consulta);
 
 			if (From != null)
@@ -1508,15 +1518,17 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 
 	public void removeUser(String arg0) throws RemoteException,
 			es.caib.seycon.ng.exception.InternalErrorException {
+		if (debug) log.info("removeUser");
 		try {
 			Account account = getServer().getAccountInfo(arg0, getCodi());
 			if (account == null || account.getStatus() == AccountStatus.REMOVED)
 			{
-				log.info("Dropping user "+arg0);
+				if (debug) log.info("Dropping user "+arg0);
 				Connection sqlConnection = getConnection();
 				PreparedStatement stmt = null;
 				stmt = sqlConnection
 						.prepareStatement("DROP USER \"" + arg0.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$
+				if (debug) log.info("SQL0 = DROP USER \"" + arg0.toUpperCase() + "\"");
 				try {
 					stmt.execute();
 				} catch (SQLException e) {
@@ -1530,14 +1542,17 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				PreparedStatement stmt = null;
 				stmt = sqlConnection
 						.prepareStatement("REVOKE CREATE SESSION FROM \"" + arg0.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$
+				if (debug) log.info("SQL1 = REVOKE CREATE SESSION FROM \"" + arg0.toUpperCase() + "\"");
 				try {
 					stmt.execute();
 				} catch (SQLException e) {
+					e.printStackTrace();
 				} finally {
 					stmt.close();
 				}
 				stmt = sqlConnection
-						.prepareStatement("ALTER USER \"" + user.toUpperCase() + "\" ACCOUNT LOCK"); //$NON-NLS-1$ //$NON-NLS-2$
+						.prepareStatement("ALTER USER \"" + arg0.toUpperCase() + "\" ACCOUNT LOCK"); //$NON-NLS-1$ //$NON-NLS-2$
+				if (debug) log.info("SQL2 = ALTER USER \"" + arg0.toUpperCase() + "\" ACCOUNT LOCK");
 				stmt.execute();
 				stmt.close();
 
@@ -1546,9 +1561,12 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 					stmt = sqlConnection
 							.prepareStatement("DELETE FROM SC_OR_ROLE WHERE SOR_GRANTEE='" //$NON-NLS-1$
 									+ arg0.toUpperCase() + "'"); //$NON-NLS-1$
+					if (debug) log.info("SQL3 = DELETE FROM SC_OR_ROLE WHERE SOR_GRANTEE='" //$NON-NLS-1$
+									+ arg0.toUpperCase() + "'");
 					try {
 						stmt.execute();
 					} catch (SQLException e) {
+						e.printStackTrace();
 					} finally {
 						stmt.close();
 					}
@@ -1564,6 +1582,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 	public void updateUser(String nom, String descripcio)
 			throws RemoteException,
 			es.caib.seycon.ng.exception.InternalErrorException {
+		if (debug) log.info("updateUser(String nom, String descripcio)");
 		PreparedStatement stmt = null;
 		PreparedStatement stmt2 = null;
 		ResultSet rset = null;
@@ -1613,6 +1632,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 						pass.getPassword() + "\" TEMPORARY TABLESPACE TEMP " + //$NON-NLS-1$
 						"DEFAULT TABLESPACE USERS ACCOUNT UNLOCK "; //$NON-NLS-1$
 				stmt = sqlConnection.prepareStatement(cmd);
+				if (debug) log.info("SQL0 = "+cmd);
 				stmt.execute();
 			}
 
