@@ -679,6 +679,9 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		if (e.toString().indexOf("ORA-01000") > 0) { //$NON-NLS-1$
 			releaseConnection();
 		}
+		if (e.toString().indexOf("Closed Connection") > 0) { //$NON-NLS-1$
+			releaseConnection();
+		}
 		if (e.toString().indexOf("Malformed SQL92") > 0) { //$NON-NLS-1$
 			e.printStackTrace(System.out);
 			return;
@@ -1532,6 +1535,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				try {
 					stmt.execute();
 				} catch (SQLException e) {
+					handleSQLException(e);
 				} finally {
 					stmt.close();
 				}
@@ -1546,7 +1550,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				try {
 					stmt.execute();
 				} catch (SQLException e) {
-					e.printStackTrace();
+					handleSQLException(e);
 				} finally {
 					stmt.close();
 				}
@@ -1566,7 +1570,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 					try {
 						stmt.execute();
 					} catch (SQLException e) {
-						e.printStackTrace();
+						handleSQLException(e);
 					} finally {
 						stmt.close();
 					}
