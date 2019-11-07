@@ -37,7 +37,7 @@
 		</row>
 		<row>
 			<input_etiqueta value="Default user profile" />
-				<input_password bind="@param5" lectura="${!canModifyAgent}"
+				<input_dada bind="@param5" lectura="${!canModifyAgent}"
 					width_custom="98%" />
 		</row>
 		<row>

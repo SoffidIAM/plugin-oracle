@@ -45,6 +45,7 @@ import es.caib.seycon.ng.sync.intf.UserMgr;
 
 public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		AccessControlMgr, AccessLogMgr, ReconcileMgr2 {
+	private static final String PASSWORD_QUOTE_REPLACEMENT = "'";
 	/** Usuario Oracle */
 	transient String user;
 	/** Contraseña oracle */
@@ -598,6 +599,8 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			}
 		}
 
+		getConnection();
+		releaseConnection();
 	}
 
 	/**
@@ -628,6 +631,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 	 * @throws InternalErrorException
 	 *             algún error en el proceso de conexión
 	 */
+	boolean disableSysdba = false;
 	public Connection getConnection() throws InternalErrorException {
 		Connection conn = (Connection) hash.get(this.getDispatcher().getCodi());
 		if (conn == null) {
@@ -639,18 +643,22 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 					Properties props = new Properties();
 					props.put("user", user); //$NON-NLS-1$
 					props.put("password", password.getPassword()); //$NON-NLS-1$
-					props.put("internal_logon", "sysdba"); //$NON-NLS-1$ //$NON-NLS-2$
+					if (!disableSysdba)
+						props.put("internal_logon", "sysdba"); //$NON-NLS-1$ //$NON-NLS-2$
 					conn = DriverManager.getConnection(db, props);
+					log.info("Connected as sysdba");
 				} catch (SQLException e) {
+					log.info("Cannot connect as sysdba");
 					conn = DriverManager.getConnection(db, user,
 							password.getPassword());
+					disableSysdba = true;
 				}
 				hash.put(this.getDispatcher().getCodi(), conn);
 				Statement stmt = conn.createStatement();
 				stmt.executeQuery("set role all");
 				stmt.close();
 			} catch (SQLException e) {
-				e.printStackTrace();
+				log.info("Error connecting to the database",e);
 				throw new InternalErrorException(
 						Messages.getString("OracleAgent.ConnectionError"), e); //$NON-NLS-1$
 			}
@@ -673,15 +681,17 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		if (e.getMessage().indexOf("Broken pipe") > 0) { //$NON-NLS-1$
 			releaseConnection();
 		}
-		if (e.getMessage().indexOf("Invalid Packet") > 0) { //$NON-NLS-1$
+		else if (e.getMessage().indexOf("Invalid Packet") > 0) { //$NON-NLS-1$
 			releaseConnection();
 		}
-		if (e.toString().indexOf("ORA-01000") > 0) { //$NON-NLS-1$
+		else if (e.toString().indexOf("ORA-01000") > 0) { //$NON-NLS-1$
 			releaseConnection();
 		}
-		if (e.toString().indexOf("Malformed SQL92") > 0) { //$NON-NLS-1$
-			e.printStackTrace(System.out);
-			return;
+		else if (e.toString().indexOf("ORA-01000") > 0) { //$NON-NLS-1$
+			releaseConnection();
+		}
+		else if (e.toString().indexOf("Closed Connection") > 0) { //$NON-NLS-1$
+			releaseConnection();
 		}
 		e.printStackTrace(System.out);
 		throw new InternalErrorException("Error ejecutando sentencia SQL", e);
@@ -748,12 +758,12 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				String cmd;
 				if (defaultProfile != null && ! defaultProfile.trim().isEmpty())
 					cmd = "CREATE USER \"" + user.toUpperCase() + "\" IDENTIFIED BY \"" + //$NON-NLS-1$ //$NON-NLS-2$
-							pass.getPassword() + "\"" +
+							pass.getPassword().replaceAll("\"", PASSWORD_QUOTE_REPLACEMENT) + "\"" +
 							" PROFILE "+defaultProfile+" TEMPORARY TABLESPACE TEMP " + //$NON-NLS-1$
 							"DEFAULT TABLESPACE USERS ACCOUNT UNLOCK"; //$NON-NLS-1$
 				else
 					cmd = "CREATE USER \"" + user.toUpperCase() + "\" IDENTIFIED BY \"" + //$NON-NLS-1$ //$NON-NLS-2$
-						pass.getPassword() + "\" TEMPORARY TABLESPACE TEMP " + //$NON-NLS-1$
+						pass.getPassword().replaceAll("\"", PASSWORD_QUOTE_REPLACEMENT) + "\" TEMPORARY TABLESPACE TEMP " + //$NON-NLS-1$
 						"DEFAULT TABLESPACE USERS ACCOUNT UNLOCK"; //$NON-NLS-1$
 				stmt = sqlConnection.prepareStatement(cmd);
 				if (debug) log.info("SQL2 = "+cmd);
@@ -820,7 +830,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 						if (getServer().getRoleInfo(r.getRolName(),
 								r.getDispatcher()).getContrasenya())
 							command = command + " IDENTIFIED BY \"" + //$NON-NLS-1$
-									rolePassword.getPassword() + "\""; //$NON-NLS-1$
+									rolePassword.getPassword().replaceAll("\"", PASSWORD_QUOTE_REPLACEMENT) + "\""; //$NON-NLS-1$
 						stmt2.execute(command);
 						// Revoke de mi mismo
 						stmt2.execute("REVOKE \"" + r.getRolName().toUpperCase() + "\" FROM \"" + this.user.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
@@ -963,7 +973,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			if (rset.next() && password.getPassword().length() > 0) {
 				stmt.close();
 				cmd = "ALTER USER \"" + user.toUpperCase() + "\" IDENTIFIED BY \"" + //$NON-NLS-1$ //$NON-NLS-2$
-						password.getPassword() + "\" ACCOUNT UNLOCK"; //$NON-NLS-1$
+						password.getPassword().replaceAll("\"", PASSWORD_QUOTE_REPLACEMENT) + "\" ACCOUNT UNLOCK"; //$NON-NLS-1$
 				stmt = sqlConnection.prepareStatement(cmd);
 				if (debug) log.info("SQL2 = "+cmd);
 				stmt.execute();
@@ -1082,7 +1092,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 
 						if (ri.getContrasenya()) {
 							cmd = cmd
-									+ " IDENTIFIED BY \"" + rolePassword.getPassword() + "\""; //$NON-NLS-1$ //$NON-NLS-2$
+									+ " IDENTIFIED BY \"" + rolePassword.getPassword().replaceAll("\"", PASSWORD_QUOTE_REPLACEMENT) + "\""; //$NON-NLS-1$ //$NON-NLS-2$
 						}
 						stmt = sqlConnection.prepareStatement(cmd);
 						stmt.execute();
@@ -1629,7 +1639,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 						getDispatcher().getCodi());
 
 				String cmd = "CREATE USER \"" + nom.toUpperCase() + "\" IDENTIFIED BY \"" + //$NON-NLS-1$ //$NON-NLS-2$
-						pass.getPassword() + "\" TEMPORARY TABLESPACE TEMP " + //$NON-NLS-1$
+						pass.getPassword().replaceAll("\"", PASSWORD_QUOTE_REPLACEMENT) + "\" TEMPORARY TABLESPACE TEMP " + //$NON-NLS-1$
 						"DEFAULT TABLESPACE USERS ACCOUNT UNLOCK "; //$NON-NLS-1$
 				stmt = sqlConnection.prepareStatement(cmd);
 				if (debug) log.info("SQL0 = "+cmd);
@@ -1687,7 +1697,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 						if (getServer().getRoleInfo(r.getRolName(),
 								r.getDispatcher()).getContrasenya())
 							command = command
-									+ " IDENTIFIED BY \"" + rolePassword.getPassword() + "\""; //$NON-NLS-1$ //$NON-NLS-2$
+									+ " IDENTIFIED BY \"" + rolePassword.getPassword().replaceAll("\"", PASSWORD_QUOTE_REPLACEMENT) + "\""; //$NON-NLS-1$ //$NON-NLS-2$
 						stmt2.execute(command);
 						// Revoke de mi mismo
 						stmt2.execute("REVOKE \"" + r.getRolName().toUpperCase() + "\" FROM \"" + this.user.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
@@ -1696,7 +1706,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 						if (getServer().getRoleInfo(r.getRolName(),
 								r.getDispatcher()).getContrasenya())
 							command = command
-									+ " IDENTIFIED BY \"" + rolePassword.getPassword() + "\""; //$NON-NLS-1$ //$NON-NLS-2$
+									+ " IDENTIFIED BY \"" + rolePassword.getPassword().replaceAll("\"", PASSWORD_QUOTE_REPLACEMENT) + "\""; //$NON-NLS-1$ //$NON-NLS-2$
 						else
 							command = command + " NOT IDENTIFIED"; //$NON-NLS-1$
 						stmt2.execute(command);
