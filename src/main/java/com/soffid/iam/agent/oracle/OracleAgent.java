@@ -55,6 +55,10 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 	/** Contraseña con la que proteger el rol */
 	transient Password rolePassword;
 	private String defaultProfile;
+	/** Define el espacio de tabla por defecto*/
+	private String defaultTablespace;
+	/** Define el espacio de tabla temporal*/
+	private String temporaryTablespace;
 	/** Valor que activa o desactiva el debug */
 	transient boolean debug;
 	/**
@@ -570,11 +574,23 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 	public void init() throws InternalErrorException {
 		log.info("Starting Oracle agent {}", getDispatcher().getCodi(), null); //$NON-NLS-1$
 		user = getDispatcher().getParam0();
-		password = Password.decode(getDispatcher().getParam1());
+		if (getDispatcher().getParam1() != null) {
+			try {
+				password = Password.decode(getDispatcher().getParam1());
+				if (debug)
+					log.info(">>> password decoded");
+			} catch (Exception e) {
+				password = null;
+				if (debug)
+					log.info(">>> error decoding password");
+			}
+		}
 		db = getDispatcher().getParam2();
-		rolePassword = Password.decode(getDispatcher().getParam3());
+		rolePassword = getDispatcher().getParam3() != null ? Password.decode(getDispatcher().getParam3()) : null;
 		debug = "true".equals(getDispatcher().getParam4());
 		defaultProfile = getDispatcher().getParam5();
+		defaultTablespace = getDispatcher().getParam6();
+		temporaryTablespace = getDispatcher().getParam7();
 		if (debug) {
 			log.info("user: "+user);
 			log.info("password: ********");
@@ -756,16 +772,16 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				Password pass = getServer().getOrGenerateUserPassword(user,
 						getDispatcher().getCodi());
 
-				String cmd;
-				if (defaultProfile != null && ! defaultProfile.trim().isEmpty())
-					cmd = "CREATE USER \"" + user.toUpperCase() + "\" IDENTIFIED BY \"" + //$NON-NLS-1$ //$NON-NLS-2$
-							pass.getPassword().replaceAll("\"", PASSWORD_QUOTE_REPLACEMENT) + "\"" +
-							" PROFILE "+defaultProfile+" TEMPORARY TABLESPACE TEMP " + //$NON-NLS-1$
-							"DEFAULT TABLESPACE USERS ACCOUNT UNLOCK"; //$NON-NLS-1$
-				else
-					cmd = "CREATE USER \"" + user.toUpperCase() + "\" IDENTIFIED BY \"" + //$NON-NLS-1$ //$NON-NLS-2$
-						pass.getPassword().replaceAll("\"", PASSWORD_QUOTE_REPLACEMENT) + "\" TEMPORARY TABLESPACE TEMP " + //$NON-NLS-1$
-						"DEFAULT TABLESPACE USERS ACCOUNT UNLOCK"; //$NON-NLS-1$
+				String cmd = "CREATE USER \"" + user.toUpperCase() + "\" IDENTIFIED BY \"" + //$NON-NLS-1$ //$NON-NLS-2$
+						pass.getPassword().replaceAll("\"", PASSWORD_QUOTE_REPLACEMENT) + "\"";
+				if (defaultProfile != null && !defaultProfile.trim().isEmpty())
+					cmd += " PROFILE " + defaultProfile;
+				if (temporaryTablespace != null && !temporaryTablespace.trim().isEmpty())
+					cmd += " TEMPORARY TABLESPACE " + temporaryTablespace;
+				if (defaultTablespace != null && !defaultTablespace.trim().isEmpty())
+					cmd += " DEFAULT TABLESPACE " + defaultTablespace;
+				cmd += " ACCOUNT UNLOCK PASSWORD EXPIRE";
+				
 				stmt = sqlConnection.prepareStatement(cmd);
 				if (debug) log.info("SQL2 = "+cmd);
 				stmt.execute();
@@ -1641,8 +1657,15 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 						getDispatcher().getCodi());
 
 				String cmd = "CREATE USER \"" + nom.toUpperCase() + "\" IDENTIFIED BY \"" + //$NON-NLS-1$ //$NON-NLS-2$
-						pass.getPassword().replaceAll("\"", PASSWORD_QUOTE_REPLACEMENT) + "\" TEMPORARY TABLESPACE TEMP " + //$NON-NLS-1$
-						"DEFAULT TABLESPACE USERS ACCOUNT UNLOCK "; //$NON-NLS-1$
+						pass.getPassword().replaceAll("\"", PASSWORD_QUOTE_REPLACEMENT) + "\"";
+				if (defaultProfile != null && !defaultProfile.trim().isEmpty())
+					cmd += " PROFILE " + defaultProfile;
+				if (temporaryTablespace != null && !temporaryTablespace.trim().isEmpty())
+					cmd += " TEMPORARY TABLESPACE " + temporaryTablespace;
+				if (defaultTablespace != null && !defaultTablespace.trim().isEmpty())
+					cmd += " DEFAULT TABLESPACE " + defaultTablespace;
+				cmd += " ACCOUNT UNLOCK PASSWORD EXPIRE";
+						
 				stmt = sqlConnection.prepareStatement(cmd);
 				if (debug) log.info("SQL0 = "+cmd);
 				stmt.execute();
