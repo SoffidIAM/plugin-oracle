@@ -687,7 +687,10 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		else if (e.toString().indexOf("ORA-01000") > 0) { //$NON-NLS-1$
 			releaseConnection();
 		}
-		if (e.toString().indexOf("Closed Connection") > 0) { //$NON-NLS-1$
+		else if (e.toString().indexOf("ORA-01012") > 0) { //$NON-NLS-1$
+			releaseConnection();
+		}
+		else if (e.toString().indexOf("Closed Connection") > 0) { //$NON-NLS-1$
 			releaseConnection();
 		}
 		if (e.toString().indexOf("Malformed SQL92") > 0) { //$NON-NLS-1$
