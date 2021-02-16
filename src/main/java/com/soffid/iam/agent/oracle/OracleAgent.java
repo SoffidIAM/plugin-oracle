@@ -1037,6 +1037,16 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 	public boolean validateUserPassword(String user, Password password)
 			throws java.rmi.RemoteException,
 			es.caib.seycon.ng.exception.InternalErrorException {
+		try {
+			Properties props = new Properties();
+			props.put("user", user); //$NON-NLS-1$
+			props.put("password", password.getPassword()); //$NON-NLS-1$
+			Connection conn = DriverManager.getConnection(db, props);
+			conn.close();
+			return true;
+		} catch (SQLException e) {
+			log.info("Error validating password for "+user+": "+e.getMessage());
+		}
 		return false;
 	}
 
@@ -1577,7 +1587,8 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				try {
 					stmt.execute();
 				} catch (SQLException e) {
-					handleSQLException(e);
+					if (e.getErrorCode() != -1952)
+						handleSQLException(e);
 				} finally {
 					stmt.close();
 				}
