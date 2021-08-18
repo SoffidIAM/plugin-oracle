@@ -2399,6 +2399,8 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 						String param = qh.getColumnNames().get(i);
 						eo.setAttribute(param, row[i]);
 					}
+					rowsNumber ++;
+					result.add(eo);
 				}
 				if (debug)
 					log.info("Rows number = "+rowsNumber);
