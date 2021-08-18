@@ -1,42 +1,62 @@
 package com.soffid.iam.agent.oracle;
 
+import java.math.BigDecimal;
 import java.net.InetAddress;
 import java.rmi.RemoteException;
+import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Types;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 
+import com.soffid.iam.api.AccessControl;
+import com.soffid.iam.api.Account;
 import com.soffid.iam.api.AccountStatus;
+import com.soffid.iam.api.Group;
+import com.soffid.iam.api.ObjectMappingTrigger;
+import com.soffid.iam.api.Password;
+import com.soffid.iam.api.Role;
+import com.soffid.iam.api.RoleGrant;
+import com.soffid.iam.api.SoffidObjectType;
+import com.soffid.iam.api.SystemAccessControl;
+import com.soffid.iam.api.User;
+import com.soffid.iam.sync.intf.ExtensibleObjectMgr;
 
-import es.caib.seycon.ng.comu.Account;
-import es.caib.seycon.ng.comu.ControlAcces;
-import es.caib.seycon.ng.comu.DispatcherAccessControl;
-import es.caib.seycon.ng.comu.Grup;
-import es.caib.seycon.ng.comu.Password;
-import es.caib.seycon.ng.comu.Rol;
-import es.caib.seycon.ng.comu.RolGrant;
-import es.caib.seycon.ng.comu.Usuari;
-//import es.caib.seycon.InternalErrorException;
+import es.caib.seycon.ng.comu.SoffidObjectTrigger;
 import es.caib.seycon.ng.exception.InternalErrorException;
-import es.caib.seycon.ng.sync.agent.Agent;
-import es.caib.seycon.ng.sync.intf.AccessControlMgr;
-import es.caib.seycon.ng.sync.intf.AccessLogMgr;
+import es.caib.seycon.ng.sync.bootstrap.NullSqlObjet;
+import es.caib.seycon.ng.sync.bootstrap.QueryHelper;
 import es.caib.seycon.ng.sync.intf.LogEntry;
-import es.caib.seycon.ng.sync.intf.ReconcileMgr2;
-import es.caib.seycon.ng.sync.intf.RoleMgr;
-import es.caib.seycon.ng.sync.intf.UserMgr;
+import oracle.jdbc.driver.OracleTypes;
+
+import com.soffid.iam.sync.agent.Agent;
+import com.soffid.iam.sync.engine.extobj.AccountExtensibleObject;
+import com.soffid.iam.sync.engine.extobj.ExtensibleObjectFinder;
+import com.soffid.iam.sync.engine.extobj.GrantExtensibleObject;
+import com.soffid.iam.sync.engine.extobj.ObjectTranslator;
+import com.soffid.iam.sync.engine.extobj.RoleExtensibleObject;
+import com.soffid.iam.sync.engine.extobj.UserExtensibleObject;
+import com.soffid.iam.sync.intf.AccessControlMgr;
+import com.soffid.iam.sync.intf.AccessLogMgr;
+import com.soffid.iam.sync.intf.ExtensibleObject;
+import com.soffid.iam.sync.intf.ExtensibleObjectMapping;
+import com.soffid.iam.sync.intf.ReconcileMgr2;
+import com.soffid.iam.sync.intf.RoleMgr;
+import com.soffid.iam.sync.intf.UserMgr;
 
 /**
  * Agente SEYCON para gestionar bases de datos Oracle
@@ -44,7 +64,7 @@ import es.caib.seycon.ng.sync.intf.UserMgr;
  */
 
 public class OracleAgent extends Agent implements UserMgr, RoleMgr,
-		AccessControlMgr, AccessLogMgr, ReconcileMgr2 {
+		AccessControlMgr, AccessLogMgr, ReconcileMgr2, ExtensibleObjectMgr {
 	private static final String PASSWORD_QUOTE_REPLACEMENT = "'";
 	/** Usuario Oracle */
 	transient String user;
@@ -267,7 +287,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 						+ //$NON-NLS-1$
 						"    seycon_accesscontrol_exception exception; \n"
 						+ //$NON-NLS-1$
-						"    usuari                         VARCHAR2(2048); \n"
+						"    User                         VARCHAR2(2048); \n"
 						+ //$NON-NLS-1$
 						"    programa                       VARCHAR2(2048); \n"
 						+ //$NON-NLS-1$
@@ -285,15 +305,15 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 						+ //$NON-NLS-1$
 						"   begin \n"
 						+ //$NON-NLS-1$
-						"     /* NO FEM LOG DE L'USUARI SYS A LOCALHOST */ \n"
+						"     /* NO FEM LOG DE L'User SYS A LOCALHOST */ \n"
 						+ //$NON-NLS-1$
-						"    --   if (UPPER(USUARI) IN ('SYS') AND IPADDRESS='127.0.0.1') THEN RETURN; END IF;\n"
+						"    --   if (UPPER(User) IN ('SYS') AND IPADDRESS='127.0.0.1') THEN RETURN; END IF;\n"
 						+ //$NON-NLS-1$
 						" \n"
 						+ //$NON-NLS-1$
 						"    /*OBTENEMOS PARAMETROS DEL USUARIO*/ \n"
 						+ //$NON-NLS-1$
-						"    select user into USUARI from DUAL; \n"
+						"    select user into User from DUAL; \n"
 						+ //$NON-NLS-1$
 						"    SELECT nvl(SYS_CONTEXT('USERENV','IP_ADDRESS'),'127.0.0.1') INTO IPADDRESS FROM DUAL; \n"
 						+ //$NON-NLS-1$
@@ -307,13 +327,13 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 						+ //$NON-NLS-1$
 						"     /*VERIFICAMOS ENTRADA: */ \n"
 						+ //$NON-NLS-1$
-						"    if (UPPER(USUARI) in ('SYS','SYSTEM')) then EXISTE:=1; /*PROCESOS DE ESTOS USUARIOS (SIN SER DBA)*/ \n"
+						"    if (UPPER(User) in ('SYS','SYSTEM')) then EXISTE:=1; /*PROCESOS DE ESTOS USUARIOS (SIN SER DBA)*/ \n"
 						+ //$NON-NLS-1$
 						"    else \n"
 						+ //$NON-NLS-1$
 						"      select COUNT(*) INTO EXISTE from sc_or_conacc \n"
 						+ //$NON-NLS-1$
-						"      where ( soc_user is null or upper(usuari) like upper(soc_user)) \n"
+						"      where ( soc_user is null or upper(User) like upper(soc_user)) \n"
 						+ //$NON-NLS-1$
 						"       and \n"
 						+ //$NON-NLS-1$
@@ -321,7 +341,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 						+ //$NON-NLS-1$
 						"        OR EXISTS \n"
 						+ //$NON-NLS-1$
-						"        (select 1 from sc_or_role where sor_grantee=usuari and sor_granted_role = soc_role) \n"
+						"        (select 1 from sc_or_role where sor_grantee=User and sor_granted_role = soc_role) \n"
 						+ //$NON-NLS-1$
 						"      ) \n"
 						+ //$NON-NLS-1$
@@ -359,7 +379,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 						+ //$NON-NLS-1$
 						"      SELECT \n"
 						+ //$NON-NLS-1$
-						"        USUARI,     	/* user_id */ \n"
+						"        User,     	/* user_id */ \n"
 						+ //$NON-NLS-1$
 						"        sessionid,     /* session_id */ \n"
 						+ //$NON-NLS-1$
@@ -403,7 +423,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 						+ //$NON-NLS-1$
 						"      SELECT \n"
 						+ //$NON-NLS-1$
-						"        USUARI, 	/* user_id  */ \n"
+						"        User, 	/* user_id  */ \n"
 						+ //$NON-NLS-1$
 						"        sessionid, /* session_id */ \n"
 						+ //$NON-NLS-1$
@@ -464,7 +484,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				String cmd = "create or replace trigger LOGOFF_AUDIT_TRIGGER before logoff on database \n" + //$NON-NLS-1$
 						"  DECLARE \n"
 						+ //$NON-NLS-1$
-						"    USUARI   varchar2(2048); \n"
+						"    User   varchar2(2048); \n"
 						+ //$NON-NLS-1$
 						"    IPADDRESS      varchar2(2048); \n"
 						+ //$NON-NLS-1$
@@ -472,13 +492,13 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 						+ //$NON-NLS-1$
 						"  BEGIN \n"
 						+ //$NON-NLS-1$
-						"    /* NO FEM LOG DE L'USUARI SYS A LOCALHOST */ \n"
+						"    /* NO FEM LOG DE L'User SYS A LOCALHOST */ \n"
 						+ //$NON-NLS-1$
-						"    --   if (UPPER(USUARI) IN ('SYS') AND IPADDRESS='127.0.0.1') THEN RETURN; END IF;\n"
+						"    --   if (UPPER(User) IN ('SYS') AND IPADDRESS='127.0.0.1') THEN RETURN; END IF;\n"
 						+ //$NON-NLS-1$
 						" \n"
 						+ //$NON-NLS-1$
-						"    select user into USUARI from DUAL; \n"
+						"    select user into User from DUAL; \n"
 						+ //$NON-NLS-1$
 						"    /*  si es null, utilizamos el localhost */ \n"
 						+ //$NON-NLS-1$
@@ -512,7 +532,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 						+ //$NON-NLS-1$
 						"    SELECT \n"
 						+ //$NON-NLS-1$
-						"      usuari,                             /* user_id */ \n"
+						"      User,                             /* user_id */ \n"
 						+ //$NON-NLS-1$
 						"      Sys_Context('USERENV','SESSIONID'), /* session_id */ \n"
 						+ //$NON-NLS-1$
@@ -572,11 +592,11 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 	 * Inicializar el agente.
 	 */
 	public void init() throws InternalErrorException {
-		log.info("Starting Oracle agent {}", getDispatcher().getCodi(), null); //$NON-NLS-1$
-		user = getDispatcher().getParam0();
-		if (getDispatcher().getParam1() != null) {
+		log.info("Starting Oracle agent {}", getSystem().getName(), null); //$NON-NLS-1$
+		user = getSystem().getParam0();
+		if (getSystem().getParam1() != null) {
 			try {
-				password = Password.decode(getDispatcher().getParam1());
+				password = Password.decode(getSystem().getParam1());
 				if (debug)
 					log.info(">>> password decoded");
 			} catch (Exception e) {
@@ -585,12 +605,12 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 					log.info(">>> error decoding password");
 			}
 		}
-		db = getDispatcher().getParam2();
-		rolePassword = getDispatcher().getParam3() != null ? Password.decode(getDispatcher().getParam3()) : null;
-		debug = "true".equals(getDispatcher().getParam4());
-		defaultProfile = getDispatcher().getParam5();
-		defaultTablespace = getDispatcher().getParam6();
-		temporaryTablespace = getDispatcher().getParam7();
+		db = getSystem().getParam2();
+		rolePassword = getSystem().getParam3() != null ? Password.decode(getSystem().getParam3()) : null;
+		debug = "true".equals(getSystem().getParam4());
+		defaultProfile = getSystem().getParam5();
+		defaultTablespace = getSystem().getParam6();
+		temporaryTablespace = getSystem().getParam7();
 		if (debug) {
 			log.info("user: "+user);
 			log.info("password: ********");
@@ -600,7 +620,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		}
 		// Verifiramos que estén creadas las tablas y los triggers
 		try {
-			if (Boolean.TRUE.equals( getDispatcher().getControlAccess()))
+			if (Boolean.TRUE.equals( getSystem().getAccessControl()))
 			{
 				createAccessControl();
 				// Obtenim les regles i activem els triggers si correspon
@@ -626,9 +646,9 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 	 * errores SQL.
 	 */
 	public void releaseConnection() {
-		Connection conn = (Connection) hash.get(this.getDispatcher().getCodi());
+		Connection conn = (Connection) hash.get(this.getSystem().getName());
 		if (conn != null) {
-			hash.remove(this.getDispatcher().getCodi());
+			hash.remove(this.getSystem().getName());
 			try {
 				conn.close();
 			} catch (SQLException e) {
@@ -648,8 +668,10 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 	 *             algún error en el proceso de conexión
 	 */
 	boolean disableSysdba = false;
+	private Collection<ExtensibleObjectMapping> objectMappings;
+	private ObjectTranslator objectTranslator;
 	public Connection getConnection() throws InternalErrorException {
-		Connection conn = (Connection) hash.get(this.getDispatcher().getCodi());
+		Connection conn = (Connection) hash.get(this.getSystem().getName());
 		if (conn == null) {
 			try {
 				DriverManager
@@ -664,12 +686,12 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 					conn = DriverManager.getConnection(db, props);
 					log.info("Connected as sysdba");
 				} catch (SQLException e) {
-					log.info("Cannot connect as sysdba");
+//					log.info("Cannot connect as sysdba");
 					conn = DriverManager.getConnection(db, user,
 							password.getPassword());
 					disableSysdba = true;
 				}
-				hash.put(this.getDispatcher().getCodi(), conn);
+				hash.put(this.getSystem().getName(), conn);
 				Statement stmt = conn.createStatement();
 				stmt.executeQuery("set role all");
 				stmt.close();
@@ -693,7 +715,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 	 */
 	public void handleSQLException(SQLException e)
 			throws InternalErrorException {
-		if (debug) log.warn(this.getDispatcher().getCodi() + " SQL Exception: ", e); //$NON-NLS-1$
+		if (debug) log.warn(this.getSystem().getName() + " SQL Exception: ", e); //$NON-NLS-1$
 		if (e.getMessage().indexOf("Broken pipe") > 0) { //$NON-NLS-1$
 			releaseConnection();
 		}
@@ -731,17 +753,18 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 	 * @throws InternalErrorException
 	 *             cualquier otro problema
 	 */
-	public void updateUser(String user, Usuari usu)
+	public void updateUser(Account account, User usu)
 			throws java.rmi.RemoteException,
 			es.caib.seycon.ng.exception.InternalErrorException {
-		if (debug) log.info("updateUser(String user, Usuari usu)");
+		if (debug) log.info("updateUser(String user, User usu)");
+		String user = account.getName();
 		// boolean active;
 		PreparedStatement stmt = null;
 		PreparedStatement stmt2 = null;
 		ResultSet rset = null;
 		// String groupsConcat = "";
-		Collection<RolGrant> roles;
-		Collection<Grup> groups;
+		Collection<RoleGrant> roles;
+		Collection<Group> groups;
 
 		String groupsAndRoles[];
 		int i;
@@ -754,7 +777,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		try {
 			// Obtener los datos del usuario
 			roles = getServer().getAccountRoles(user,
-					this.getDispatcher().getCodi());
+					this.getSystem().getName());
 
 			groups = null;
 			groupsAndRoles = concatUserGroupsAndRoles(groups, roles);
@@ -769,11 +792,12 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			rset = stmt.executeQuery();
 			// Determinar si el usuario está o no activo
 			// Si no existe darlo de alta
-			if (!rset.next()) {
+			final boolean newObject = !rset.next();
+			if (newObject) {
 				stmt.close();
 
 				Password pass = getServer().getOrGenerateUserPassword(user,
-						getDispatcher().getCodi());
+						getSystem().getName());
 
 				String cmd = "CREATE USER \"" + user.toUpperCase() + "\" IDENTIFIED BY \"" + //$NON-NLS-1$ //$NON-NLS-2$
 						pass.getPassword().replaceAll("\"", PASSWORD_QUOTE_REPLACEMENT) + "\"";
@@ -785,9 +809,21 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 					cmd += " DEFAULT TABLESPACE " + defaultTablespace;
 				cmd += " ACCOUNT UNLOCK PASSWORD EXPIRE";
 				
+				if (! runTriggers(SoffidObjectType.OBJECT_USER, SoffidObjectTrigger.PRE_INSERT, new UserExtensibleObject(account, usu, getServer()))) {
+					if (debug)
+						log.info("Ignoring creation of user "+account.getName()+" due to pre-insert trigger failure");
+					return;
+				}
 				stmt = sqlConnection.prepareStatement(cmd);
 				if (debug) log.info("SQL2 = "+cmd);
 				stmt.execute();
+			} else {
+				if (! runTriggers(SoffidObjectType.OBJECT_USER, SoffidObjectTrigger.PRE_UPDATE, new UserExtensibleObject(account, usu, getServer()))) {
+					if (debug)
+						log.info("Ignoring creation of user "+account.getName()+" due to pre-insert trigger failure");
+					return;
+				}
+				
 			}
 			// System.out.println ("Usuario "+user+" ya existe");
 			rset.close();
@@ -822,8 +858,30 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 						groupsAndRoles[i] = null;
 					}
 				}
-				if (/* !active || */!found)
-					stmt2.execute("REVOKE \"" + role + "\" FROM \"" + user.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+				if (!found) {
+					RoleGrant r = new RoleGrant();
+					r.setRoleName(role);
+					r.setSystem(getAgentName());
+					r.setOwnerAccountName(account.getName());
+					r.setOwnerSystem(account.getSystem());
+					if ( runTriggers(SoffidObjectType.OBJECT_GRANT, SoffidObjectTrigger.PRE_DELETE, new GrantExtensibleObject(r, getServer())) &&
+							runTriggers(SoffidObjectType.OBJECT_ALL_GRANTED_GROUP, SoffidObjectTrigger.PRE_DELETE, new GrantExtensibleObject(r, getServer())) &&
+							runTriggers(SoffidObjectType.OBJECT_ALL_GRANTED_ROLES, SoffidObjectTrigger.PRE_DELETE, new GrantExtensibleObject(r, getServer())) &&
+							runTriggers(SoffidObjectType.OBJECT_GRANTED_GROUP, SoffidObjectTrigger.PRE_DELETE, new GrantExtensibleObject(r, getServer())) &&
+							runTriggers(SoffidObjectType.OBJECT_GRANTED_ROLE, SoffidObjectTrigger.PRE_DELETE, new GrantExtensibleObject(r, getServer()))) 
+					{
+						stmt2.execute("REVOKE \"" + role + "\" FROM \"" + user.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+						boolean ok = runTriggers(SoffidObjectType.OBJECT_GRANT, SoffidObjectTrigger.POST_DELETE, new GrantExtensibleObject(r, getServer())) &&
+								runTriggers(SoffidObjectType.OBJECT_ALL_GRANTED_GROUP, SoffidObjectTrigger.POST_DELETE, new GrantExtensibleObject(r, getServer())) &&
+								runTriggers(SoffidObjectType.OBJECT_ALL_GRANTED_ROLES, SoffidObjectTrigger.POST_DELETE, new GrantExtensibleObject(r, getServer())) &&
+								runTriggers(SoffidObjectType.OBJECT_GRANTED_GROUP, SoffidObjectTrigger.POST_DELETE, new GrantExtensibleObject(r, getServer())) &&
+								runTriggers(SoffidObjectType.OBJECT_GRANTED_ROLE, SoffidObjectTrigger.POST_DELETE, new GrantExtensibleObject(r, getServer())); 
+					} else {
+						if (debug)
+							log.info("Grant not revoked due to pre-delete trigger failure");
+					}
+
+				}
 			}
 			rset.close();
 			stmt.close();
@@ -831,29 +889,37 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			String rolesPorDefecto = null;
 
 			// Crear los roles si son necesarios
-			for (RolGrant r : roles) {
+			for (RoleGrant r : roles) {
 				if (r != null) {
 					// if(r.){
 					if (rolesPorDefecto == null)
-						rolesPorDefecto = "\"" + r.getRolName().toUpperCase() + "\""; //$NON-NLS-1$ //$NON-NLS-2$
+						rolesPorDefecto = "\"" + r.getRoleName().toUpperCase() + "\""; //$NON-NLS-1$ //$NON-NLS-2$
 					else
 						rolesPorDefecto = rolesPorDefecto + ",\"" + //$NON-NLS-1$
-								r.getRolName().toUpperCase() + "\""; //$NON-NLS-1$
+								r.getRoleName().toUpperCase() + "\""; //$NON-NLS-1$
 					// }
 					stmt = sqlConnection
 							.prepareStatement("SELECT 1 FROM SYS.DBA_ROLES WHERE ROLE=?"); //$NON-NLS-1$
-					stmt.setString(1, r.getRolName().toUpperCase());
+					stmt.setString(1, r.getRoleName().toUpperCase());
 					rset = stmt.executeQuery();
 					if (!rset.next()) {
-						// Password protected or not
-						String command = "CREATE ROLE \"" + r.getRolName().toUpperCase() + "\""; //$NON-NLS-1$ //$NON-NLS-2$
-						if (getServer().getRoleInfo(r.getRolName(),
-								r.getDispatcher()).getContrasenya())
-							command = command + " IDENTIFIED BY \"" + //$NON-NLS-1$
-									rolePassword.getPassword().replaceAll("\"", PASSWORD_QUOTE_REPLACEMENT) + "\""; //$NON-NLS-1$
-						stmt2.execute(command);
-						// Revoke de mi mismo
-						stmt2.execute("REVOKE \"" + r.getRolName().toUpperCase() + "\" FROM \"" + this.user.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+						Role role = getServer().getRoleInfo(r.getRoleName(), getAgentName());
+						if ( runTriggers(SoffidObjectType.OBJECT_ROLE, SoffidObjectTrigger.PRE_INSERT, new com.soffid.iam.sync.engine.extobj.RoleExtensibleObject(role, getServer())) ) 
+						{
+							// Password protected or not
+							String command = "CREATE ROLE \"" + r.getRoleName().toUpperCase() + "\""; //$NON-NLS-1$ //$NON-NLS-2$
+							if (getServer().getRoleInfo(r.getRoleName(),
+									r.getSystem()).getPassword())
+								command = command + " IDENTIFIED BY \"" + //$NON-NLS-1$
+										rolePassword.getPassword().replaceAll("\"", PASSWORD_QUOTE_REPLACEMENT) + "\""; //$NON-NLS-1$
+							stmt2.execute(command);
+							// Revoke de mi mismo
+							stmt2.execute("REVOKE \"" + r.getRoleName().toUpperCase() + "\" FROM \"" + this.user.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+							runTriggers(SoffidObjectType.OBJECT_ROLE, SoffidObjectTrigger.POST_INSERT, new com.soffid.iam.sync.engine.extobj.RoleExtensibleObject(role, getServer()));
+						} else {
+							if (debug)
+								log.info("Grant not executed due to pre-insert trigger failure");
+						}
 					}
 					rset.close();
 					stmt.close();
@@ -864,25 +930,44 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			for (i = 0; /* active && */groupsAndRoles != null
 					&& i < groupsAndRoles.length; i++) {
 				if (groupsAndRoles[i] != null) {
-					stmt2.execute("GRANT \"" + groupsAndRoles[i].toUpperCase() + "\" TO  \"" + user.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+					RoleGrant r = new RoleGrant();
+					r.setRoleName(groupsAndRoles[i]);
+					r.setSystem(getAgentName());
+					r.setOwnerAccountName(account.getName());
+					r.setOwnerSystem(account.getSystem());
+					if ( runTriggers(SoffidObjectType.OBJECT_GRANT, SoffidObjectTrigger.PRE_INSERT, new GrantExtensibleObject(r, getServer())) &&
+							runTriggers(SoffidObjectType.OBJECT_ALL_GRANTED_GROUP, SoffidObjectTrigger.PRE_INSERT, new GrantExtensibleObject(r, getServer())) &&
+							runTriggers(SoffidObjectType.OBJECT_ALL_GRANTED_ROLES, SoffidObjectTrigger.PRE_INSERT, new GrantExtensibleObject(r, getServer())) &&
+							runTriggers(SoffidObjectType.OBJECT_GRANTED_GROUP, SoffidObjectTrigger.PRE_INSERT, new GrantExtensibleObject(r, getServer())) &&
+							runTriggers(SoffidObjectType.OBJECT_GRANTED_ROLE, SoffidObjectTrigger.PRE_INSERT, new GrantExtensibleObject(r, getServer()))) 
+					{
+						stmt2.execute("GRANT \"" + groupsAndRoles[i].toUpperCase() + "\" TO  \"" + user.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+						boolean ok = runTriggers(SoffidObjectType.OBJECT_GRANT, SoffidObjectTrigger.POST_INSERT, new GrantExtensibleObject(r, getServer())) &&
+								runTriggers(SoffidObjectType.OBJECT_ALL_GRANTED_GROUP, SoffidObjectTrigger.POST_INSERT, new GrantExtensibleObject(r, getServer())) &&
+								runTriggers(SoffidObjectType.OBJECT_ALL_GRANTED_ROLES, SoffidObjectTrigger.POST_INSERT, new GrantExtensibleObject(r, getServer())) &&
+								runTriggers(SoffidObjectType.OBJECT_GRANTED_GROUP, SoffidObjectTrigger.POST_INSERT, new GrantExtensibleObject(r, getServer())) &&
+								runTriggers(SoffidObjectType.OBJECT_GRANTED_ROLE, SoffidObjectTrigger.POST_INSERT, new GrantExtensibleObject(r, getServer())); 
+					} else {
+						if (debug)
+							log.info("Grant not executed due to pre-insert trigger failure");
+					}
 				}
 			}
 
 			// Ajustar los roles por defecto
-			/*
-			 * if (active) {
-			 */
 			if (rolesPorDefecto == null)
 				rolesPorDefecto = "NONE"; //$NON-NLS-1$
 			String ss = "ALTER USER \"" + user.toUpperCase() + "\" DEFAULT ROLE " + //$NON-NLS-1$ //$NON-NLS-2$
 					rolesPorDefecto;
 			// System.out.println (ss);
 			stmt2.execute(ss);
-			/* } */
+
+			runTriggers(SoffidObjectType.OBJECT_USER, newObject ? SoffidObjectTrigger.POST_INSERT : SoffidObjectTrigger.POST_UPDATE, new UserExtensibleObject(account, usu, getServer()));
+
 
 			// Insertamos en la tabla de roles para CONTROL DE ACCESO (¿solo si
 			// el usuario está activo??)
-			if (Boolean.TRUE.equals( getDispatcher().getControlAccess()))
+			if (Boolean.TRUE.equals( getSystem().getAccessControl()))
 			{
 				String[] grupsAndRolesCAC = concatUserGroupsAndRoles(groups,
 						roles);
@@ -975,7 +1060,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 	 * @throws InternalErrorException
 	 *             cualquier otro problema
 	 */
-	public void updateUserPassword(String user, Usuari arg1, Password password,
+	public void updateUserPassword(String user, User arg1, Password password,
 			boolean mustchange)
 			throws es.caib.seycon.ng.exception.InternalErrorException {
 		if (debug) log.info("updateUserPassword");
@@ -1060,34 +1145,34 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 	 *            vector de roles
 	 * @return vector con nombres de grupo y role
 	 */
-	public String[] concatUserGroupsAndRoles(Collection<Grup> groups,
-			Collection<RolGrant> roles) {
+	public String[] concatUserGroupsAndRoles(Collection<Group> groups,
+			Collection<RoleGrant> roles) {
 		int i;
 		int j;
 
-		if (roles.isEmpty() && getDispatcher().getBasRol()) // roles.length == 0
+		if (roles.isEmpty() && getSystem().getRolebased()) // roles.length == 0
 															// && getRoleBased
 															// ()
 			return null;
 		LinkedList<String> concat = new LinkedList<String>();
 		if (groups != null) {
-			for (Grup g : groups)
-				concat.add(g.getCodi());
+			for (Group g : groups)
+				concat.add(g.getName());
 		}
-		for (RolGrant rg : roles) {
-			concat.add(rg.getRolName());
+		for (RoleGrant rg : roles) {
+			concat.add(rg.getRoleName());
 		}
 
 		return concat.toArray(new String[concat.size()]);
 	}
 
-	public String[] concatRoleNames(Collection<RolGrant> roles) {
-		if (roles.isEmpty() && getDispatcher().getBasRol())
+	public String[] concatRoleNames(Collection<RoleGrant> roles) {
+		if (roles.isEmpty() && getSystem().getRolebased())
 			return null;
 
 		LinkedList<String> concat = new LinkedList<String>();
-		for (RolGrant rg : roles) {
-			concat.add(rg.getRolName());
+		for (RoleGrant rg : roles) {
+			concat.add(rg.getRoleName());
 		}
 
 		return concat.toArray(new String[concat.size()]);
@@ -1099,14 +1184,14 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 	 * @see es.caib.seycon.RoleMgr#UpdateRole(java.lang.String,
 	 * java.lang.String)
 	 */
-	public void updateRole(Rol ri) throws RemoteException,
+	public void updateRole(Role ri) throws RemoteException,
 			es.caib.seycon.ng.exception.InternalErrorException {
-		String bd = ri.getBaseDeDades();
-		String role = ri.getNom();
+		String bd = ri.getSystem();
+		String role = ri.getName();
 		PreparedStatement stmt = null;
 		String cmd = ""; //$NON-NLS-1$
 		try {
-			if (this.getDispatcher().getCodi().equals(bd)) {
+			if (this.getSystem().getName().equals(bd)) {
 				// Comprobar si el rol existe en la bd
 				Connection sqlConnection = getConnection();
 				stmt = sqlConnection
@@ -1117,28 +1202,31 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				{
 					if (ri != null) {// si el rol encara existeix al seycon (no
 										// s'ha esborrat)
-						stmt.close();
-						cmd = "CREATE ROLE \"" + role.toUpperCase() + "\""; //$NON-NLS-1$ //$NON-NLS-2$
-
-						if (ri.getContrasenya()) {
-							cmd = cmd
-									+ " IDENTIFIED BY \"" + rolePassword.getPassword().replaceAll("\"", PASSWORD_QUOTE_REPLACEMENT) + "\""; //$NON-NLS-1$ //$NON-NLS-2$
+						if ( runTriggers(SoffidObjectType.OBJECT_ROLE, SoffidObjectTrigger.PRE_INSERT, new RoleExtensibleObject(ri, getServer())) )  {
+							stmt.close();
+							cmd = "CREATE ROLE \"" + role.toUpperCase() + "\""; //$NON-NLS-1$ //$NON-NLS-2$
+	
+							if (ri.getPassword()) {
+								cmd = cmd
+										+ " IDENTIFIED BY \"" + rolePassword.getPassword().replaceAll("\"", PASSWORD_QUOTE_REPLACEMENT) + "\""; //$NON-NLS-1$ //$NON-NLS-2$
+							}
+							stmt = sqlConnection.prepareStatement(cmd);
+							stmt.execute();
+							// Fem un revoke per a l'User SYSTEM (CAI-579530:
+							// u88683)
+							stmt.close();
+							stmt = sqlConnection
+									.prepareStatement("REVOKE \"" + role.toUpperCase() + "\" FROM \"" + user.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+							stmt.execute();
+	
+							runTriggers(SoffidObjectType.OBJECT_ROLE, SoffidObjectTrigger.POST_INSERT, new RoleExtensibleObject(ri, getServer())) ;
+						} else {
+							if (debug)
+								log.info("Creation of role "+ri.getName()+" ignored due to pre-insert trigger failure");
 						}
-						stmt = sqlConnection.prepareStatement(cmd);
-						stmt.execute();
-						// Fem un revoke per a l'usuari SYSTEM (CAI-579530:
-						// u88683)
-						stmt.close();
-						stmt = sqlConnection
-								.prepareStatement("REVOKE \"" + role.toUpperCase() + "\" FROM \"" + user.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
-						stmt.execute();
-
-						// Aqui en no en tenim encara informació a la bbdd
-						// sobre qui té atorgat aquest rol.. no posem res a
-						// sc_or_role
 					}
 				}
-				if (Boolean.TRUE.equals( getDispatcher().getControlAccess()))
+				if (Boolean.TRUE.equals( getSystem().getAccessControl()))
 				{
 					if (ri != null ) {
 						// Afegim informació dels usuaris que actualment tenen
@@ -1252,33 +1340,33 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 	 * @param s_cac_id
 	 * @return
 	 */
-	private boolean equalsControlAccess(ControlAcces cac, String s_user,
+	private boolean equalsControlAccess(AccessControl cac, String s_user,
 			String s_role, String s_host, String s_program, String s_cac_id) {
 
 		// Si no es la misma fila, no continuamos (AÑADIDO POR TRAZAS)
 		if (!s_cac_id.equals(cac.getId()))
 			return false; // idControlAcces canviat per getId
 
-		// usuari o rol ha de ser nulo (uno de los dos)
+		// User o rol ha de ser nulo (uno de los dos)
 		if (s_user == null) {
-			if (cac.getUsuariGeneric() != null)
+			if (cac.getGenericUser() != null)
 				return false;
 		} else {
-			if (!s_user.equals(cac.getUsuariGeneric()))
+			if (!s_user.equals(cac.getGenericUser()))
 				return false;
 		}
 		if (s_role == null) {
-			if (cac.getDescripcioRol() != null)
+			if (cac.getRoleDescription() != null)
 				return false;
 		} else {
-			if (!s_role.equals(cac.getDescripcioRol()))
+			if (!s_role.equals(cac.getRoleDescription()))
 				return false;
 		}
 		if (s_host == null) {
-			if (cac.getIdMaquina() != null)
+			if (cac.getHostId() != null)
 				return false;
 		} else {
-			if (!s_host.equals(cac.getIdMaquina()))
+			if (!s_host.equals(cac.getHostId()))
 				return false;
 		}
 		if (s_program == null) {
@@ -1295,30 +1383,30 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 
 	public void updateAccessControl() throws RemoteException,
 			InternalErrorException {
-		DispatcherAccessControl dispatcherInfo = null; // Afegit AccessControl
+		SystemAccessControl dispatcherInfo = null; // Afegit AccessControl
 		PreparedStatement stmt = null;
 		PreparedStatement stmt2 = null;
 		ResultSet rset = null;
 
 		try {
 			dispatcherInfo = getServer().getDispatcherAccessControl(
-					this.getDispatcher().getId());
+					this.getSystem().getId());
 			// dispatcherInfo =
-			// getServer().getDispatcherInfo(this.getDispatcher().getCodi());
+			// getServer().getSystemInfo(this.getSystem().getName());
 			Connection sqlConnection = getConnection();
 
 			if (dispatcherInfo == null) {
 				setAccessControlActive(false); // desactivamos triggers
 				throw new Exception(Messages.getString("OracleAgent.282") //$NON-NLS-1$
-						+ this.getDispatcher().getCodi()
+						+ this.getSystem().getName()
 						+ Messages.getString("OracleAgent.283")); //$NON-NLS-1$
 			}
 
-			if (dispatcherInfo.getControlAccessActiu()) { // getControlAccessActiu()
+			if (dispatcherInfo.getEnabled()) { // getControlAccessActiu()
 				// Lo activamos al final (!!)
 
 				// Obtenemos las reglas de control de acceso
-				List<ControlAcces> controlAcces = dispatcherInfo.getControlAcces();
+				List<AccessControl> controlAcces = dispatcherInfo.getControlAcces();
 				// ArrayList<ControlAccess> controlAccess =
 				// dispatcherInfo.getControlAcces();
 
@@ -1343,7 +1431,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 															// ¿necesario?
 
 						for (int i = 0; /* !found && */i < controlAcces.size(); i++) {
-							ControlAcces cac = controlAcces.get(i);
+							AccessControl cac = controlAcces.get(i);
 							if (cac != null
 									&& equalsControlAccess(cac, s_user, s_role,
 											s_host, s_program, s_idcac)) {
@@ -1382,15 +1470,15 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 					// añadimos los que no tiene
 					for (int i = 0; i < controlAcces.size(); i++) {
 						if (controlAcces.get(i) != null) {
-							ControlAcces cac = controlAcces.get(i);
+							AccessControl cac = controlAcces.get(i);
 							stmt2 = sqlConnection
 									.prepareStatement("INSERT INTO SC_OR_CONACC(SOC_USER, SOC_ROLE, SOC_HOST, SOC_PROGRAM, SOC_CAC_ID, SOC_HOSTNAME) VALUES (?,?,?,?,?,?)"); //$NON-NLS-1$
-							stmt2.setString(1, cac.getUsuariGeneric());
-							stmt2.setString(2, cac.getDescripcioRol());
-							stmt2.setString(3, cac.getIpsPropagades());
+							stmt2.setString(1, cac.getGenericUser());
+							stmt2.setString(2, cac.getRoleDescription());
+							stmt2.setString(3, cac.getRemoteIp());
 							stmt2.setString(4, cac.getProgram());
 							stmt2.setString(5, cac.getId().toString());
-							stmt2.setString(6, cac.getNomMaquina());
+							stmt2.setString(6, cac.getHostName());
 							stmt2.execute();
 							stmt2.close();
 						}
@@ -1429,11 +1517,11 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		}
 	}
 
-	public Collection<LogEntry> getLogFromDate(Date From)
+	public Collection<? extends LogEntry> getLogFromDate(Date From)
 			throws RemoteException, InternalErrorException {
-		DispatcherAccessControl dispatcherInfo = getServer().getDispatcherAccessControl(
-				this.getDispatcher().getId());
-		if ( !  dispatcherInfo.getControlAccessActiu())
+		SystemAccessControl dispatcherInfo = getServer().getDispatcherAccessControl(
+				this.getSystem().getId());
+		if ( !  dispatcherInfo.getEnabled())
 			return null;
 		PreparedStatement stmt = null;
 		ResultSet rset = null;
@@ -1516,12 +1604,21 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 	public void removeRole(String nom, String bbdd) {
 		try {
 			Connection sqlConnection = getConnection();
-			if (this.getDispatcher().getCodi().equals(bbdd)) {
+			if (this.getSystem().getName().equals(bbdd)) {
+				Role ri = new Role();
+				ri.setName(nom);
+				ri.setSystem(bbdd);
 				PreparedStatement stmtCAC = null;
-				stmtCAC = sqlConnection
-						.prepareStatement("DROP ROLE \"" + nom.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$
-				stmtCAC.execute();
-				stmtCAC.close();
+				if ( runTriggers(SoffidObjectType.OBJECT_ROLE, SoffidObjectTrigger.PRE_DELETE, new RoleExtensibleObject(ri, getServer())) )  {
+					stmtCAC = sqlConnection
+							.prepareStatement("DROP ROLE \"" + nom.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$
+					stmtCAC.execute();
+					stmtCAC.close();
+					runTriggers(SoffidObjectType.OBJECT_ROLE, SoffidObjectTrigger.POST_DELETE, new RoleExtensibleObject(ri, getServer()));
+				} else {
+					if (debug)
+						log.info("Removal of role "+nom+" has been ignored due to pre-delete trigger failure");
+				}
 				// Borramos las filas de control de acceso relacionadas
 				// con el ROL
 
@@ -1560,22 +1657,47 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			es.caib.seycon.ng.exception.InternalErrorException {
 		if (debug) log.info("removeUser");
 		try {
-			Account account = getServer().getAccountInfo(arg0, getCodi());
+			Account account = getServer().getAccountInfo(arg0, getAgentName());
 			if (account == null || account.getStatus() == AccountStatus.REMOVED)
 			{
-				if (debug) log.info("Dropping user "+arg0);
+				// Comprobar si el usuario existe
 				Connection sqlConnection = getConnection();
 				PreparedStatement stmt = null;
 				stmt = sqlConnection
-						.prepareStatement("DROP USER \"" + arg0.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$
-				if (debug) log.info("SQL0 = DROP USER \"" + arg0.toUpperCase() + "\"");
-				try {
-					stmt.execute();
-				} catch (SQLException e) {
-					handleSQLException(e);
-				} finally {
-					stmt.close();
+						.prepareStatement("SELECT 1 FROM SYS.DBA_USERS WHERE USERNAME=?"); //$NON-NLS-1$
+				stmt.setString(1, arg0.toUpperCase());
+				if (debug) log.info("SQL1 = SELECT 1 FROM SYS.DBA_USERS WHERE USERNAME="+arg0.toUpperCase());
+				ResultSet rset = stmt.executeQuery();
+				// Determinar si el usuario está o no activo
+				// Si no existe darlo de alta
+				if (rset.next()) {
+					if (account == null) {
+						account = new Account();
+						account.setName(arg0);
+						account.setSystem(getAgentName());
+					}
+					if ( runTriggers(SoffidObjectType.OBJECT_ACCOUNT, SoffidObjectTrigger.PRE_DELETE, new AccountExtensibleObject(account, getServer())) )  {
+						rset.close();
+						stmt.close();
+						if (debug) log.info("Dropping user "+arg0);
+						stmt = sqlConnection
+								.prepareStatement("DROP USER \"" + arg0.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$
+						if (debug) log.info("SQL0 = DROP USER \"" + arg0.toUpperCase() + "\"");
+						try {
+							stmt.execute();
+						} catch (SQLException e) {
+							handleSQLException(e);
+						} finally {
+							stmt.close();
+						}
+						runTriggers(SoffidObjectType.OBJECT_ACCOUNT, SoffidObjectTrigger.POST_DELETE, new AccountExtensibleObject(account, getServer()));
+					} else {
+						if (debug)
+							log.info("Removal of account "+arg0+" has been ignored due to pre-delete trigger failure");
+					}
 				}
+				else
+					stmt.close();
 			}
 			else
 			{
@@ -1621,7 +1743,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		}
 	}
 
-	public void updateUser(String nom, String descripcio)
+	public void updateUser(Account acc)
 			throws RemoteException,
 			es.caib.seycon.ng.exception.InternalErrorException {
 		if (debug) log.info("updateUser(String nom, String descripcio)");
@@ -1629,7 +1751,9 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		PreparedStatement stmt2 = null;
 		ResultSet rset = null;
 
-		Collection<RolGrant> roles;
+		
+		String accountName = acc.getName();
+		Collection<RoleGrant> roles;
 
 		int i;
 
@@ -1640,8 +1764,8 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 
 		try {
 			// Obtener los datos del usuario
-			roles = getServer().getAccountRoles(nom,
-					this.getDispatcher().getCodi());
+			roles = getServer().getAccountRoles(accountName,
+					this.getSystem().getName());
 
 			Connection sqlConnection = getConnection();
 
@@ -1660,17 +1784,24 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			// Comprobar si el usuario existe
 			stmt = sqlConnection
 					.prepareStatement("SELECT 1 FROM SYS.DBA_USERS WHERE USERNAME=?"); //$NON-NLS-1$
-			stmt.setString(1, nom.toUpperCase());
+			stmt.setString(1, accountName.toUpperCase());
 			rset = stmt.executeQuery();
 			// Determinar si el usuario está o no activo
 			// Si no existe darlo de alta
-			if (!rset.next()) {
+			final boolean newUser = !rset.next();
+			if (newUser) {
 				stmt.close();
 
-				Password pass = getServer().getOrGenerateUserPassword(nom,
-						getDispatcher().getCodi());
+				Password pass = getServer().getOrGenerateUserPassword(accountName,
+						getSystem().getName());
 
-				String cmd = "CREATE USER \"" + nom.toUpperCase() + "\" IDENTIFIED BY \"" + //$NON-NLS-1$ //$NON-NLS-2$
+				if (! runTriggers(SoffidObjectType.OBJECT_ACCOUNT, SoffidObjectTrigger.PRE_INSERT, new AccountExtensibleObject(acc, getServer()))) {
+					if (debug)
+						log.info("Ignoring creation of user "+acc.getName()+" due to pre-insert trigger failure");
+					return ;
+				}
+
+				String cmd = "CREATE USER \"" + accountName.toUpperCase() + "\" IDENTIFIED BY \"" + //$NON-NLS-1$ //$NON-NLS-2$
 						pass.getPassword().replaceAll("\"", PASSWORD_QUOTE_REPLACEMENT) + "\"";
 				if (defaultProfile != null && !defaultProfile.trim().isEmpty())
 					cmd += " PROFILE " + defaultProfile;
@@ -1679,10 +1810,18 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				if (defaultTablespace != null && !defaultTablespace.trim().isEmpty())
 					cmd += " DEFAULT TABLESPACE " + defaultTablespace;
 				cmd += " ACCOUNT UNLOCK PASSWORD EXPIRE";
-						
+
 				stmt = sqlConnection.prepareStatement(cmd);
 				if (debug) log.info("SQL0 = "+cmd);
 				stmt.execute();
+			} else {
+				if (! runTriggers(SoffidObjectType.OBJECT_ACCOUNT, SoffidObjectTrigger.PRE_UPDATE, new AccountExtensibleObject(acc, getServer()))) {
+					if (debug)
+						log.info("Ignoring update of user "+acc.getName()+" due to pre-update trigger failure");
+					return;
+				}
+				
+
 			}
 
 			rset.close();
@@ -1690,28 +1829,50 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			// Dar o revocar permiso de create session : La part de revocar
 			// passada a removeUser()
 			stmt = sqlConnection
-					.prepareStatement("GRANT CREATE SESSION TO  \"" + nom.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$
+					.prepareStatement("GRANT CREATE SESSION TO  \"" + accountName.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$
 			stmt.execute();
 			stmt.close();
 
 			// Eliminar los roles que sobran
 			stmt = sqlConnection
 					.prepareStatement("SELECT GRANTED_ROLE FROM SYS.DBA_ROLE_PRIVS WHERE GRANTEE=?"); //$NON-NLS-1$
-			stmt.setString(1, nom.toUpperCase());
+			stmt.setString(1, accountName.toUpperCase());
 			rset = stmt.executeQuery();
 			stmt2 = sqlConnection.prepareStatement("select 1 from dual"); //no s'admet constructor buit //$NON-NLS-1$
 			while (rset.next()) {
 				boolean found = false;
 				String role = rset.getString(1);
 
-				for (RolGrant ro : roles) {
-					if (ro != null && ro.getRolName().equalsIgnoreCase(role)) {
+				for (RoleGrant ro : roles) {
+					if (ro != null && ro.getRoleName().equalsIgnoreCase(role)) {
 						found = true;
 						ro = null;
 					}
 				}
-				if (!found)
-					stmt2.execute("REVOKE \"" + role + "\" FROM \"" + nom.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+				if (!found) {
+					RoleGrant r = new RoleGrant();
+					r.setRoleName(role);
+					r.setSystem(getAgentName());
+					r.setOwnerAccountName(acc.getName());
+					r.setOwnerSystem(acc.getSystem());
+
+					if ( runTriggers(SoffidObjectType.OBJECT_GRANT, SoffidObjectTrigger.PRE_DELETE, new GrantExtensibleObject(r, getServer())) &&
+							runTriggers(SoffidObjectType.OBJECT_ALL_GRANTED_GROUP, SoffidObjectTrigger.PRE_DELETE, new GrantExtensibleObject(r, getServer())) &&
+							runTriggers(SoffidObjectType.OBJECT_ALL_GRANTED_ROLES, SoffidObjectTrigger.PRE_DELETE, new GrantExtensibleObject(r, getServer())) &&
+							runTriggers(SoffidObjectType.OBJECT_GRANTED_GROUP, SoffidObjectTrigger.PRE_DELETE, new GrantExtensibleObject(r, getServer())) &&
+							runTriggers(SoffidObjectType.OBJECT_GRANTED_ROLE, SoffidObjectTrigger.PRE_DELETE, new GrantExtensibleObject(r, getServer()))) 
+					{
+						stmt2.execute("REVOKE \"" + role + "\" FROM \"" + user.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+						boolean ok = runTriggers(SoffidObjectType.OBJECT_GRANT, SoffidObjectTrigger.POST_DELETE, new GrantExtensibleObject(r, getServer())) &&
+								runTriggers(SoffidObjectType.OBJECT_ALL_GRANTED_GROUP, SoffidObjectTrigger.POST_DELETE, new GrantExtensibleObject(r, getServer())) &&
+								runTriggers(SoffidObjectType.OBJECT_ALL_GRANTED_ROLES, SoffidObjectTrigger.POST_DELETE, new GrantExtensibleObject(r, getServer())) &&
+								runTriggers(SoffidObjectType.OBJECT_GRANTED_GROUP, SoffidObjectTrigger.POST_DELETE, new GrantExtensibleObject(r, getServer())) &&
+								runTriggers(SoffidObjectType.OBJECT_GRANTED_ROLE, SoffidObjectTrigger.POST_DELETE, new GrantExtensibleObject(r, getServer())); 
+					} else {
+						if (debug)
+							log.info("Grant not revoked due to pre-delete trigger failure");
+					}
+				}
 			}
 			rset.close();
 			stmt.close();
@@ -1719,31 +1880,39 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			String rolesPorDefecto = null;
 
 			// Crear los roles si son necesarios
-			for (RolGrant r : roles) {
+			for (RoleGrant r : roles) {
 				if (r != null) {
 					if (rolesPorDefecto == null)
-						rolesPorDefecto = "\"" + r.getRolName().toUpperCase() + "\""; //$NON-NLS-1$ //$NON-NLS-2$
+						rolesPorDefecto = "\"" + r.getRoleName().toUpperCase() + "\""; //$NON-NLS-1$ //$NON-NLS-2$
 					else
 						rolesPorDefecto = rolesPorDefecto
-								+ ",\"" + r.getRolName().toUpperCase() + "\""; //$NON-NLS-1$ //$NON-NLS-2$
+								+ ",\"" + r.getRoleName().toUpperCase() + "\""; //$NON-NLS-1$ //$NON-NLS-2$
 					stmt = sqlConnection
 							.prepareStatement("SELECT 1 FROM SYS.DBA_ROLES WHERE ROLE=?"); //$NON-NLS-1$
-					stmt.setString(1, r.getRolName().toUpperCase());
+					stmt.setString(1, r.getRoleName().toUpperCase());
 					rset = stmt.executeQuery();
 					if (!rset.next()) {
-						// Password protected or not
-						String command = "CREATE ROLE \"" + r.getRolName().toUpperCase() + "\""; //$NON-NLS-1$ //$NON-NLS-2$
-						if (getServer().getRoleInfo(r.getRolName(),
-								r.getDispatcher()).getContrasenya())
-							command = command
-									+ " IDENTIFIED BY \"" + rolePassword.getPassword().replaceAll("\"", PASSWORD_QUOTE_REPLACEMENT) + "\""; //$NON-NLS-1$ //$NON-NLS-2$
-						stmt2.execute(command);
-						// Revoke de mi mismo
-						stmt2.execute("REVOKE \"" + r.getRolName().toUpperCase() + "\" FROM \"" + this.user.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+						Role role = getServer().getRoleInfo(r.getRoleName(), getAgentName());
+						if ( runTriggers(SoffidObjectType.OBJECT_ROLE, SoffidObjectTrigger.PRE_INSERT, new com.soffid.iam.sync.engine.extobj.RoleExtensibleObject(role, getServer())) ) 
+						{
+							// Password protected or not
+							String command = "CREATE ROLE \"" + r.getRoleName().toUpperCase() + "\""; //$NON-NLS-1$ //$NON-NLS-2$
+							if (getServer().getRoleInfo(r.getRoleName(),
+									r.getSystem()).getPassword())
+								command = command
+										+ " IDENTIFIED BY \"" + rolePassword.getPassword().replaceAll("\"", PASSWORD_QUOTE_REPLACEMENT) + "\""; //$NON-NLS-1$ //$NON-NLS-2$
+							stmt2.execute(command);
+							// Revoke de mi mismo
+							stmt2.execute("REVOKE \"" + r.getRoleName().toUpperCase() + "\" FROM \"" + this.user.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+							runTriggers(SoffidObjectType.OBJECT_ROLE, SoffidObjectTrigger.POST_INSERT, new com.soffid.iam.sync.engine.extobj.RoleExtensibleObject(role, getServer()));
+						} else {
+							if (debug)
+								log.info("Grant not executed due to pre-insert trigger failure");
+						}
 					} else {
-						String command = "ALTER ROLE \"" + r.getRolName().toUpperCase() + "\""; //$NON-NLS-1$ //$NON-NLS-2$
-						if (getServer().getRoleInfo(r.getRolName(),
-								r.getDispatcher()).getContrasenya())
+						String command = "ALTER ROLE \"" + r.getRoleName().toUpperCase() + "\""; //$NON-NLS-1$ //$NON-NLS-2$
+						if (getServer().getRoleInfo(r.getRoleName(),
+								r.getSystem()).getPassword())
 							command = command
 									+ " IDENTIFIED BY \"" + rolePassword.getPassword().replaceAll("\"", PASSWORD_QUOTE_REPLACEMENT) + "\""; //$NON-NLS-1$ //$NON-NLS-2$
 						else
@@ -1756,62 +1925,82 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			}
 
 			// Añadir los roles que no tiene
-			for (RolGrant ros : roles) {
-				if (ros != null) {
-					stmt2.execute("GRANT \"" + ros.getRolName().toUpperCase() + "\" TO  \"" + nom.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+			for (RoleGrant r : roles) {
+				if (r != null) {
+					if ( runTriggers(SoffidObjectType.OBJECT_GRANT, SoffidObjectTrigger.PRE_INSERT, new GrantExtensibleObject(r, getServer())) &&
+							runTriggers(SoffidObjectType.OBJECT_ALL_GRANTED_GROUP, SoffidObjectTrigger.PRE_INSERT, new GrantExtensibleObject(r, getServer())) &&
+							runTriggers(SoffidObjectType.OBJECT_ALL_GRANTED_ROLES, SoffidObjectTrigger.PRE_INSERT, new GrantExtensibleObject(r, getServer())) &&
+							runTriggers(SoffidObjectType.OBJECT_GRANTED_GROUP, SoffidObjectTrigger.PRE_INSERT, new GrantExtensibleObject(r, getServer())) &&
+							runTriggers(SoffidObjectType.OBJECT_GRANTED_ROLE, SoffidObjectTrigger.PRE_INSERT, new GrantExtensibleObject(r, getServer()))) 
+					{
+						stmt2.execute("GRANT \"" + r.getRoleName().toUpperCase() + "\" TO  \"" + accountName.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+						boolean ok = runTriggers(SoffidObjectType.OBJECT_GRANT, SoffidObjectTrigger.POST_INSERT, new GrantExtensibleObject(r, getServer())) &&
+								runTriggers(SoffidObjectType.OBJECT_ALL_GRANTED_GROUP, SoffidObjectTrigger.POST_INSERT, new GrantExtensibleObject(r, getServer())) &&
+								runTriggers(SoffidObjectType.OBJECT_ALL_GRANTED_ROLES, SoffidObjectTrigger.POST_INSERT, new GrantExtensibleObject(r, getServer())) &&
+								runTriggers(SoffidObjectType.OBJECT_GRANTED_GROUP, SoffidObjectTrigger.POST_INSERT, new GrantExtensibleObject(r, getServer())) &&
+								runTriggers(SoffidObjectType.OBJECT_GRANTED_ROLE, SoffidObjectTrigger.POST_INSERT, new GrantExtensibleObject(r, getServer())); 
+					} else {
+						if (debug)
+							log.info("Grant not executed due to pre-insert trigger failure");
+					}
 				}
 			}
 
 			// Ajustar los roles por defecto
 			if (rolesPorDefecto == null)
 				rolesPorDefecto = "NONE"; //$NON-NLS-1$
-			String ss = "ALTER USER \"" + nom.toUpperCase() + "\" DEFAULT ROLE " + rolesPorDefecto; //$NON-NLS-1$ //$NON-NLS-2$
+			String ss = "ALTER USER \"" + accountName.toUpperCase() + "\" DEFAULT ROLE " + rolesPorDefecto; //$NON-NLS-1$ //$NON-NLS-2$
 			stmt2.execute(ss);
+
+			runTriggers(SoffidObjectType.OBJECT_ACCOUNT, newUser ? SoffidObjectTrigger.POST_INSERT : SoffidObjectTrigger.POST_UPDATE, new AccountExtensibleObject(acc, getServer()));
 
 			// Insertamos en la tabla de roles para CONTROL DE ACCESO (¿solo si
 			// el usuario está activo??)
-			String[] rolesCAC = concatRoleNames(roles);
-			HashSet grupsAndRolesHash = (rolesCAC != null && rolesCAC.length != 0) ? new HashSet(
-					Arrays.asList(rolesCAC)) // eliminem repetits
-					: new HashSet(); // evitem error al ésser llista buida
-			rolesCAC = (String[]) grupsAndRolesHash.toArray(new String[0]);
-			// 1) Obtenemos los roles que ya tiene
-			stmt = sqlConnection
-					.prepareStatement("SELECT SOR_GRANTED_ROLE FROM SC_OR_ROLE WHERE SOR_GRANTEE=?"); //$NON-NLS-1$
-			stmt.setString(1, nom.toUpperCase());
-			rset = stmt.executeQuery();
-			stmt2 = sqlConnection.prepareStatement("select 1 from dual"); //$NON-NLS-1$
-			while (rset.next()) {
-				boolean found = false;
-				String role = rset.getString(1);
-				for (i = 0; rolesCAC != null && !found && i < rolesCAC.length; i++) {
-					if (rolesCAC[i] != null
-							&& rolesCAC[i].equalsIgnoreCase(role)) {
-						found = true;
-						rolesCAC[i] = null;
+			if (Boolean.TRUE.equals( getSystem().getAccessControl()))
+			{
+				String[] rolesCAC = concatRoleNames(roles);
+				HashSet grupsAndRolesHash = (rolesCAC != null && rolesCAC.length != 0) ? new HashSet(
+						Arrays.asList(rolesCAC)) // eliminem repetits
+						: new HashSet(); // evitem error al ésser llista buida
+				rolesCAC = (String[]) grupsAndRolesHash.toArray(new String[0]);
+				// 1) Obtenemos los roles que ya tiene
+				stmt = sqlConnection
+						.prepareStatement("SELECT SOR_GRANTED_ROLE FROM SC_OR_ROLE WHERE SOR_GRANTEE=?"); //$NON-NLS-1$
+				stmt.setString(1, accountName.toUpperCase());
+				rset = stmt.executeQuery();
+				stmt2 = sqlConnection.prepareStatement("select 1 from dual"); //$NON-NLS-1$
+				while (rset.next()) {
+					boolean found = false;
+					String role = rset.getString(1);
+					for (i = 0; rolesCAC != null && !found && i < rolesCAC.length; i++) {
+						if (rolesCAC[i] != null
+								&& rolesCAC[i].equalsIgnoreCase(role)) {
+							found = true;
+							rolesCAC[i] = null;
+						}
 					}
-				}
-				if (!found) {
-					stmt2.execute("DELETE FROM SC_OR_ROLE WHERE SOR_GRANTEE='" //$NON-NLS-1$
-							+ nom.toUpperCase() + "' AND SOR_GRANTED_ROLE ='" //$NON-NLS-1$
-							+ role.toUpperCase() + "'"); //$NON-NLS-1$
-					stmt2.close();
-				}
-			}
-			rset.close();
-			stmt.close();
-			// Añadir los roles que no tiene
-			if (rolesCAC != null)
-				for (i = 0; i < rolesCAC.length; i++) {
-					if (rolesCAC[i] != null) {
-						stmt2 = sqlConnection
-								.prepareStatement("INSERT INTO SC_OR_ROLE (SOR_GRANTEE, SOR_GRANTED_ROLE) SELECT '" //$NON-NLS-1$
-										+ nom.toUpperCase()
-										+ "', '" + rolesCAC[i].toUpperCase() + "' FROM DUAL "); //$NON-NLS-1$ //$NON-NLS-2$
-						stmt2.execute();
+					if (!found) {
+						stmt2.execute("DELETE FROM SC_OR_ROLE WHERE SOR_GRANTEE='" //$NON-NLS-1$
+								+ accountName.toUpperCase() + "' AND SOR_GRANTED_ROLE ='" //$NON-NLS-1$
+								+ role.toUpperCase() + "'"); //$NON-NLS-1$
 						stmt2.close();
 					}
 				}
+				rset.close();
+				stmt.close();
+				// Añadir los roles que no tiene
+				if (rolesCAC != null)
+					for (i = 0; i < rolesCAC.length; i++) {
+						if (rolesCAC[i] != null) {
+							stmt2 = sqlConnection
+									.prepareStatement("INSERT INTO SC_OR_ROLE (SOR_GRANTEE, SOR_GRANTED_ROLE) SELECT '" //$NON-NLS-1$
+											+ accountName.toUpperCase()
+											+ "', '" + rolesCAC[i].toUpperCase() + "' FROM DUAL "); //$NON-NLS-1$ //$NON-NLS-2$
+							stmt2.execute();
+							stmt2.close();
+						}
+					}
+			}
 		} catch (SQLException e) {
 			handleSQLException(e);
 		} catch (Exception e) {
@@ -1844,7 +2033,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		PreparedStatement stmt2 = null;
 		ResultSet rset = null;
 
-		Collection<RolGrant> roles;
+		Collection<RoleGrant> roles;
 
 		int i;
 
@@ -1911,7 +2100,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				Account account = new Account ();
 				account.setName(userAccount);
 				account.setName(userAccount);
-				account.setDispatcher(getCodi());
+				account.setSystem(getAgentName());
 				account.setDisabled( ! "OPEN".equals(rset.getString(1)));
 				return account;
 			}
@@ -1981,7 +2170,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		return roles;
 	}
 
-	public Rol getRoleFullInfo(String roleName) throws RemoteException,
+	public Role getRoleFullInfo(String roleName) throws RemoteException,
 			InternalErrorException {
 		PreparedStatement stmt = null;
 		PreparedStatement stmt2 = null;
@@ -1998,10 +2187,10 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			// Determinar si el usuario está o no activo
 			// Si no existe darlo de alta
 			if (rset.next()) {
-				Rol r = new Rol();
-				r.setBaseDeDades(getCodi());
-				r.setNom(rset.getString(1));
-				r.setDescripcio(rset.getString(1));
+				Role r = new Role();
+				r.setSystem(getAgentName());
+				r.setName(rset.getString(1));
+				r.setDescription(rset.getString(1));
 				return r;
 			}
 
@@ -2031,9 +2220,9 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		return null;
 	}
 
-	public List<RolGrant> getAccountGrants(String userAccount)
+	public List<RoleGrant> getAccountGrants(String userAccount)
 			throws RemoteException, InternalErrorException {
-		LinkedList<RolGrant> roles = new LinkedList<RolGrant>();
+		LinkedList<RoleGrant> roles = new LinkedList<RoleGrant>();
 		PreparedStatement stmt = null;
 		ResultSet rset = null;
 
@@ -2047,11 +2236,11 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			// Determinar si el usuario está o no activo
 			// Si no existe darlo de alta
 			while (rset.next()) {
-				RolGrant rg = new RolGrant();
-				rg.setDispatcher(getCodi());
-				rg.setRolName(rset.getString(1));
+				RoleGrant rg = new RoleGrant();
+				rg.setSystem(getAgentName());
+				rg.setRoleName(rset.getString(1));
 				rg.setOwnerAccountName(userAccount);
-				rg.setOwnerDispatcher(getCodi());
+				rg.setOwnerSystem(getAgentName());
 				roles.add(rg);
 			}
 
@@ -2075,4 +2264,361 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		}
 		return roles;
 	}
+	
+	private boolean runTriggers(SoffidObjectType objectType, SoffidObjectTrigger triggerType, 
+			ExtensibleObject src) throws InternalErrorException {
+		List<ObjectMappingTrigger> triggers = getTriggers (objectType, triggerType);
+		for (ObjectMappingTrigger trigger: triggers)
+		{
+	
+			ExtensibleObject eo = new ExtensibleObject();
+			eo.setAttribute("source", src);
+			eo.setAttribute("newObject", new HashMap());
+			eo.setAttribute("oldObject", new HashMap());
+			if ( ! objectTranslator.evalExpression(eo, trigger.getScript()) )
+			{
+				log.info("Trigger "+trigger.getTrigger().toString()+" returned false");
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private List<ObjectMappingTrigger> getTriggers(SoffidObjectType objectType, SoffidObjectTrigger type) {
+		List<ObjectMappingTrigger> triggers = new LinkedList<ObjectMappingTrigger>();
+		if (objectMappings != null) {
+			for ( ExtensibleObjectMapping objectMapping: objectMappings)
+			{
+				if (objectMapping.getSoffidObject().toString().equals(objectType.toString()))
+				{
+					for ( ObjectMappingTrigger trigger: objectMapping.getTriggers())
+					{
+						if (trigger.getTrigger() == type)
+							triggers.add(trigger);
+					}
+				}
+			}
+		}
+		return triggers;
+	}
+
+	public Collection<Map<String, Object>> invoke(String verb, String command,
+			Map<String, Object> params) throws RemoteException, InternalErrorException 
+	{
+		ExtensibleObject o = new ExtensibleObject();
+		if (params != null)
+		o.putAll(params);
+		if (command == null)
+			command = "";
+		if (verb != null && !verb.trim().isEmpty())
+			command = verb.trim() + " " +command;
+		List<Map<String, Object>> result = new LinkedList<Map<String,Object>>();
+		executeSentence(command, o, null, result );
+		return result;
+	}
+
+	public void configureMappings(Collection<ExtensibleObjectMapping> objects)
+			throws RemoteException, InternalErrorException {
+		this.objectMappings = objects;
+		objectTranslator = new ObjectTranslator(getSystem(), getServer(), objectMappings);
+		objectTranslator.setObjectFinder(finder);
+	}
+
+	public ExtensibleObject getNativeObject(SoffidObjectType type, String object1, String object2)
+			throws RemoteException, InternalErrorException {
+		return null;
+	}
+
+	public ExtensibleObject getSoffidObject(SoffidObjectType type, String object1, String object2)
+			throws RemoteException, InternalErrorException {
+		return null;
+	}
+
+	ExtensibleObjectFinder finder = new ExtensibleObjectFinder() {
+		
+		public Collection<Map<String, Object>> invoke(String verb, String command, Map<String, Object> params)
+				throws InternalErrorException {
+			try {
+				return OracleAgent.this.invoke(verb, command, params);
+			} catch (RemoteException e) {
+				throw new InternalErrorException("Error executing command "+verb+" "+command, e);
+			}
+		}
+		
+		public ExtensibleObject find(ExtensibleObject pattern) throws Exception {
+			return null;
+		}
+	};
+	
+	private int executeSentence(String sentence, ExtensibleObject obj, String filter, List<Map<String, Object>> result) throws InternalErrorException {
+		StringBuffer b = new StringBuffer ();
+		List<Object> parameters = new LinkedList<Object>();
+		if (result != null)
+			result.clear();
+		
+		Object cursor = new Object();
+		parseSentence(sentence, obj, b, parameters, cursor);
+		
+		String parsedSentence = b.toString().trim();
+		
+		if (debug)
+		{
+			log.info("Executing "+parsedSentence);
+			for (Object param: parameters)
+			{
+				log.info("   Param: "+(param == null ? "null": param.toString()+" ["
+						+param.getClass().toString()+"]"));
+			}
+		}
+		
+		Connection conn;
+		try {
+			conn = getConnection();
+			conn.setAutoCommit(true);
+		} catch (Exception e1) {
+			throw new InternalErrorException("Error connecting to database ", e1);
+		}
+		if (parsedSentence.toLowerCase().startsWith("select"))
+		{
+			if (debug)
+				log.info("Getting rows");
+			QueryHelper qh = new QueryHelper(conn);
+			qh.setEnableNullSqlObject(true);
+			try {
+				List<Object[]> rows = qh.select(parsedSentence, parameters.toArray());
+				log.info("Got rows size = "+rows.size());
+				int rowsNumber = 0;
+				for (Object[] row: rows)
+				{
+					if (debug)
+						log.info("Got row ");
+					ExtensibleObject eo = new ExtensibleObject();
+					eo.setObjectType(obj.getObjectType());
+					for (int i = 0; i < row.length; i ++)
+					{
+						String param = qh.getColumnNames().get(i);
+						eo.setAttribute(param, row[i]);
+					}
+				}
+				if (debug)
+					log.info("Rows number = "+rowsNumber);
+				return rowsNumber;
+			} catch (SQLException e) {
+				handleSQLException(e);
+				throw new InternalErrorException("Error executing sentence "+parsedSentence, e);
+			}
+		}
+		else if (parsedSentence.toLowerCase().startsWith("update") || 
+				parsedSentence.toLowerCase().startsWith("delete"))
+		{
+			QueryHelper qh = new QueryHelper(conn);
+			qh.setEnableNullSqlObject(true);
+			try {
+				return qh.executeUpdate(parsedSentence, parameters.toArray());
+			} catch (SQLException e) {
+				handleSQLException(e);
+				throw new InternalErrorException("Error executing sentence "+parsedSentence, e);
+			}
+		} 
+		else if (parsedSentence.toLowerCase().startsWith("{call") )
+		{
+			try {
+				List<Object[]> r = executeCall(conn, null, parameters,
+						cursor, parsedSentence);
+				int rowsNumber = 0;
+				Object [] header = null;
+				for (Object[] row: r)
+				{
+					if (header == null)
+						header = row;
+					else
+					{
+						ExtensibleObject eo = new ExtensibleObject();
+						eo.setObjectType(obj.getObjectType());
+						for (int i = 0; i < row.length; i ++)
+						{
+							String param = header[i].toString();
+							eo.setAttribute(param, row[i]);
+						}
+						rowsNumber ++;
+						for (int i = 0; i < row.length; i ++)
+						{
+							String param = header[i].toString();
+							if (obj.getAttribute(param) == null)
+							{
+								obj.setAttribute(param, row[i]);
+							}
+						}
+						if (result != null)
+							result.add(eo);
+					}
+				}
+				return rowsNumber;
+			} catch (SQLException e) {
+				handleSQLException(e);
+				throw new InternalErrorException("Error executing sentence "+parsedSentence, e);
+			}
+		}
+		else 
+		{
+			QueryHelper qh = new QueryHelper(conn);
+			qh.setEnableNullSqlObject(true);
+			try {
+				qh.execute(parsedSentence, parameters.toArray());
+				return 1;
+			} catch (SQLException e) {
+				handleSQLException(e);
+				throw new InternalErrorException("Error executing sentence "+parsedSentence, e);
+			}
+		}
+
+	}
+
+	private List<Object[]> executeCall(Connection conn, Long maxRows,
+			List<Object> parameters, Object cursor, String parsedSentence)
+			throws SQLException {
+		List<Object[]> result = new LinkedList<Object[]>();
+		LinkedList<String> columnNames = new LinkedList<String>();
+		CallableStatement stmt = conn.prepareCall(parsedSentence);
+
+		try {
+			int num = 0;
+			int cursorNumber = -1;
+			for (Object param : parameters)
+			{
+				num++;
+				if (param == null)
+				{
+					stmt.setNull(num, Types.VARCHAR);
+				}
+				else if (param == cursor)
+				{
+					stmt.registerOutParameter(num, OracleTypes.CURSOR);
+					cursorNumber = num;
+				}
+				else if (param instanceof Long)
+				{
+					stmt.setLong(num, (Long) param);
+				}
+				else if (param instanceof Integer)
+				{
+					stmt.setInt(num, (Integer) param);
+				}
+				else if (param instanceof Date)
+				{
+					stmt.setDate(num, (java.sql.Date) param);
+				}
+				else if (param instanceof java.sql.Timestamp)
+				{
+					stmt.setTimestamp(num, (java.sql.Timestamp) param);
+				}
+				else
+				{
+					stmt.setString(num, param.toString());
+				}
+			}
+			stmt.execute();
+			if (cursorNumber >= 0)
+			{
+				long rows = 0;
+				ResultSet rset = (ResultSet) stmt.getObject(cursorNumber);
+				try
+				{
+					int cols = rset.getMetaData().getColumnCount();
+					for (int i = 0; i < cols; i++)
+					{
+						columnNames.add (rset.getMetaData().getColumnLabel(i+1));
+					}
+					result.add(columnNames.toArray());
+					while (rset.next() && (maxRows == null || rows < maxRows.longValue()))
+					{
+						rows++;
+						Object[] row = new Object[cols];
+						for (int i = 0; i < cols; i++)
+						{
+							Object obj = rset.getObject(i + 1);
+							if (obj == null)
+							{
+								int type = rset.getMetaData().getColumnType(i+1);
+								if (type == Types.BINARY ||
+									type == Types.LONGVARBINARY ||
+									type == Types.VARBINARY || type == Types.BLOB ||
+									type == Types.DATE || type == Types.TIMESTAMP ||
+									type == Types.TIME || type == Types.BLOB)
+										row [i] = new NullSqlObjet(type);
+							}
+							else if (obj instanceof Date)
+							{
+								row[i] = rset.getTimestamp(i+1);
+							}
+							else if (obj instanceof BigDecimal)
+							{
+								row[i] = rset.getLong(i+1);
+							}
+							else
+								row[i] = obj;
+						}
+						result.add(row);
+					}
+				}
+				finally
+				{
+					rset.close();
+				}
+			}
+		}
+		finally
+		{
+			stmt.close();
+		}
+		return result;
+	}
+
+	
+	private void parseSentence(String sentence, ExtensibleObject obj,
+			StringBuffer parsedSentence, List<Object> parameters, Object outputCursor) {
+		int position = 0;
+		// First, transforma sentence into a valid SQL API sentence
+		do
+		{
+			int nextQuote = sentence.indexOf('\'', position);
+			int next = sentence.indexOf(':', position);
+			if (next < 0)
+			{
+				parsedSentence.append (sentence.substring(position));
+				position = sentence.length();
+			}
+			else if (nextQuote >= 0 && next > nextQuote)
+			{
+				parsedSentence.append (sentence.substring(position, nextQuote+1));
+				position = nextQuote + 1;
+			}
+			else
+			{
+				parsedSentence.append (sentence.substring(position, next));
+				int paramStart = next + 1;
+				int paramEnd = paramStart;
+				while (paramEnd < sentence.length() && 
+						Character.isJavaIdentifierPart(sentence.charAt(paramEnd)))
+				{
+					paramEnd ++;
+				}
+				if (paramEnd == paramStart) // A := is being used
+					parsedSentence.append (":");
+				else
+				{
+					parsedSentence.append ("?");
+					String param = sentence.substring(paramStart, paramEnd);
+					Object paramValue =  obj.getAttribute(param);
+					if (paramValue == null && param.toLowerCase().startsWith("return"))
+						parameters.add(outputCursor);
+					else
+						parameters.add(paramValue);
+				}
+				position = paramEnd;
+			}
+		} while (position < sentence.length());
+	}
+
+
 }
