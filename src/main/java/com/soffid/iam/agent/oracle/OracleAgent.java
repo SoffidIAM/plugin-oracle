@@ -737,6 +737,9 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		else if (e.toString().indexOf("ORA-01012") > 0) { //$NON-NLS-1$
 			releaseConnection();
 		}
+		else if (e.toString().indexOf("ORA-02396") > 0) { //$NON-NLS-1$ Timeout
+			releaseConnection();
+		}
 		else if (e.toString().indexOf("Closed Connection") > 0) { //$NON-NLS-1$
 			releaseConnection();
 		}
