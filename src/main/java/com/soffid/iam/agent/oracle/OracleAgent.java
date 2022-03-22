@@ -1026,6 +1026,21 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 
 			}// FIN_CAC_ACTIVO
 
+			if (false /* hack for Idealista */ ) {
+				// Unlock account
+				Password p = getServer().getAccountPassword(account.getName(), getAgentName());
+				if (p != null) {
+					String cmd = "ALTER USER \"" + user.toUpperCase() + "\" IDENTIFIED BY \"" + //$NON-NLS-1$ //$NON-NLS-2$
+							quotePassword(p) + "\" ACCOUNT UNLOCK"; //$NON-NLS-1$
+					stmt2 = sqlConnection
+							.prepareStatement(sentence(cmd, p)); //$NON-NLS-1$ //$NON-NLS-2$
+					stmt2.execute();
+					stmt2.close();
+					
+				}
+				
+			}
+			
 		} catch (SQLException e) {
 			handleSQLException(e);
 		} catch (Exception e) {
@@ -1726,35 +1741,39 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			}
 			else
 			{
-				Connection sqlConnection = getConnection();
-				PreparedStatement stmt = null;
-				stmt = sqlConnection
-						.prepareStatement(sentence("REVOKE CREATE SESSION FROM \"" + arg0.toUpperCase() + "\"")); //$NON-NLS-1$ //$NON-NLS-2$
-				try {
-					stmt.execute();
-				} catch (SQLException e) {
-					if (e.getErrorCode() != -1952)
-						handleSQLException(e);
-				} finally {
-					stmt.close();
-				}
-				stmt = sqlConnection
-						.prepareStatement(sentence("ALTER USER \"" + arg0.toUpperCase() + "\" ACCOUNT LOCK")); //$NON-NLS-1$ //$NON-NLS-2$
-				stmt.execute();
-				stmt.close();
-
-				// Borramos las referencias de la tabla de control de acceso
-				if (Boolean.TRUE.equals( getSystem().getAccessControl())) {
+				if ( runTriggers(SoffidObjectType.OBJECT_ACCOUNT, SoffidObjectTrigger.PRE_UPDATE, new AccountExtensibleObject(account, getServer())) )  {
+					Connection sqlConnection = getConnection();
+					PreparedStatement stmt = null;
 					stmt = sqlConnection
-							.prepareStatement(sentence("DELETE FROM SC_OR_ROLE WHERE SOR_GRANTEE='" //$NON-NLS-1$
-									+ arg0.toUpperCase() + "'")); //$NON-NLS-1$
+							.prepareStatement(sentence("REVOKE CREATE SESSION FROM \"" + arg0.toUpperCase() + "\"")); //$NON-NLS-1$ //$NON-NLS-2$
 					try {
 						stmt.execute();
 					} catch (SQLException e) {
-						handleSQLException(e);
+						if (e.getErrorCode() != -1952)
+							handleSQLException(e);
 					} finally {
 						stmt.close();
 					}
+					stmt = sqlConnection
+							.prepareStatement(sentence("ALTER USER \"" + arg0.toUpperCase() + "\" ACCOUNT LOCK")); //$NON-NLS-1$ //$NON-NLS-2$
+					stmt.execute();
+					stmt.close();
+	
+					// Borramos las referencias de la tabla de control de acceso
+					if (Boolean.TRUE.equals( getSystem().getAccessControl())) {
+						stmt = sqlConnection
+								.prepareStatement(sentence("DELETE FROM SC_OR_ROLE WHERE SOR_GRANTEE='" //$NON-NLS-1$
+										+ arg0.toUpperCase() + "'")); //$NON-NLS-1$
+						try {
+							stmt.execute();
+						} catch (SQLException e) {
+							handleSQLException(e);
+						} finally {
+							stmt.close();
+						}
+					}
+					runTriggers(SoffidObjectType.OBJECT_ACCOUNT, SoffidObjectTrigger.POST_UPDATE, new AccountExtensibleObject(account, getServer()));
+					removeRoles (sqlConnection, arg0);
 				}
 			}
 		} catch (Exception e) {
@@ -1762,6 +1781,42 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			throw new InternalErrorException(
 					Messages.getString("OracleAgent.318"), e); //$NON-NLS-1$
 		}
+	}
+
+	private void removeRoles(Connection sqlConnection, String accountName) throws SQLException, InternalErrorException {
+		PreparedStatement stmt = sqlConnection
+				.prepareStatement(sentence("SELECT GRANTED_ROLE FROM SYS.DBA_ROLE_PRIVS WHERE GRANTEE=?")); //$NON-NLS-1$
+		stmt.setString(1, accountName.toUpperCase());
+		ResultSet rset = stmt.executeQuery();
+		Statement stmt2 = sqlConnection.createStatement();
+		while (rset.next()) {
+			String role = rset.getString(1);
+
+			RoleGrant r = new RoleGrant();
+			r.setRoleName(role);
+			r.setSystem(getAgentName());
+			r.setOwnerAccountName(accountName);
+			r.setOwnerSystem(getSystem().getName());
+
+			if ( runTriggers(SoffidObjectType.OBJECT_GRANT, SoffidObjectTrigger.PRE_DELETE, new GrantExtensibleObject(r, getServer())) &&
+					runTriggers(SoffidObjectType.OBJECT_ALL_GRANTED_GROUP, SoffidObjectTrigger.PRE_DELETE, new GrantExtensibleObject(r, getServer())) &&
+					runTriggers(SoffidObjectType.OBJECT_ALL_GRANTED_ROLES, SoffidObjectTrigger.PRE_DELETE, new GrantExtensibleObject(r, getServer())) &&
+					runTriggers(SoffidObjectType.OBJECT_GRANTED_GROUP, SoffidObjectTrigger.PRE_DELETE, new GrantExtensibleObject(r, getServer())) &&
+					runTriggers(SoffidObjectType.OBJECT_GRANTED_ROLE, SoffidObjectTrigger.PRE_DELETE, new GrantExtensibleObject(r, getServer()))) 
+			{
+				stmt2.execute("REVOKE \"" + role + "\" FROM \"" + accountName.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+				boolean ok = runTriggers(SoffidObjectType.OBJECT_GRANT, SoffidObjectTrigger.POST_DELETE, new GrantExtensibleObject(r, getServer())) &&
+						runTriggers(SoffidObjectType.OBJECT_ALL_GRANTED_GROUP, SoffidObjectTrigger.POST_DELETE, new GrantExtensibleObject(r, getServer())) &&
+						runTriggers(SoffidObjectType.OBJECT_ALL_GRANTED_ROLES, SoffidObjectTrigger.POST_DELETE, new GrantExtensibleObject(r, getServer())) &&
+						runTriggers(SoffidObjectType.OBJECT_GRANTED_GROUP, SoffidObjectTrigger.POST_DELETE, new GrantExtensibleObject(r, getServer())) &&
+						runTriggers(SoffidObjectType.OBJECT_GRANTED_ROLE, SoffidObjectTrigger.POST_DELETE, new GrantExtensibleObject(r, getServer())); 
+			} else {
+				if (debug)
+					log.info("Grant not revoked due to pre-delete trigger failure");
+			}
+		}
+		rset.close();
+		stmt.close();
 	}
 
 	public void updateUser(Account acc)
