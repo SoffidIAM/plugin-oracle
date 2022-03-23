@@ -613,11 +613,13 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				if (debug)
 					log.info("Disabled 'LOGON_AUDIT_TRIGGER' to updated it", null, null); //$NON-NLS-1$
 			}
+			rsetCAC.close();
+			stmtCAC.close();
 			stmtCAC = sqlConnection.prepareStatement(
 					sentence("select 1 from user_triggers where upper(TRIGGER_NAME) ='LOGOFF_AUDIT_TRIGGER'", null)); //$NON-NLS-1$
 			rsetCAC = stmtCAC.executeQuery();
 
-			boolean existeLogonTrigger = rsetCAC.next();
+			existeLogonTrigger = rsetCAC.next();
 
 			if (existeLogonTrigger) {
 
