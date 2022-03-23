@@ -588,6 +588,71 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 
 	}
 
+	private void disableAccessControl()
+			throws java.rmi.RemoteException, es.caib.seycon.ng.exception.InternalErrorException {
+		PreparedStatement stmtCAC = null;
+		PreparedStatement stmt = null;
+		ResultSet rsetCAC = null;
+		try {
+			Connection sqlConnection = getConnection();
+
+			// TRIGGERS DE LOGON Y LOGOFF
+			// LOGON
+			stmtCAC = sqlConnection.prepareStatement(
+					sentence("select 1 from user_triggers where upper(TRIGGER_NAME) ='LOGON_AUDIT_TRIGGER'", null)); //$NON-NLS-1$
+			rsetCAC = stmtCAC.executeQuery();
+
+			boolean existeLogonTrigger = rsetCAC.next();
+
+			if (existeLogonTrigger) {
+
+				// Lo desactivamos (para actualizarlo)
+				stmt = sqlConnection.prepareStatement(sentence("alter trigger logon_audit_trigger disable", null)); //$NON-NLS-1$
+				stmt.execute();
+				stmt.close();
+				if (debug)
+					log.info("Disabled 'LOGON_AUDIT_TRIGGER' to updated it", null, null); //$NON-NLS-1$
+			}
+			stmtCAC = sqlConnection.prepareStatement(
+					sentence("select 1 from user_triggers where upper(TRIGGER_NAME) ='LOGOFF_AUDIT_TRIGGER'", null)); //$NON-NLS-1$
+			rsetCAC = stmtCAC.executeQuery();
+
+			boolean existeLogonTrigger = rsetCAC.next();
+
+			if (existeLogonTrigger) {
+
+				// Lo desactivamos (para actualizarlo)
+				stmt = sqlConnection.prepareStatement(sentence("alter trigger logoff_audit_trigger disable", null)); //$NON-NLS-1$
+				stmt.execute();
+				stmt.close();
+				if (debug)
+					log.info("Disabled 'LOGON_AUDIT_TRIGGER' to updated it", null, null); //$NON-NLS-1$
+			}
+		} catch (SQLException e) {
+			handleSQLException(e);
+		} catch (Exception e) {
+			e.printStackTrace();
+			throw new InternalErrorException(Messages.getString("OracleAgent.AccessControlVerificationError"), e); //$NON-NLS-1$
+		} finally {
+			if (rsetCAC != null)
+				try {
+					rsetCAC.close();
+				} catch (Exception e) {
+				}
+			if (stmtCAC != null)
+				try {
+					stmtCAC.close();
+				} catch (Exception e) {
+				}
+			if (stmt != null)
+				try {
+					stmt.close();
+				} catch (Exception e) {
+				}
+		}
+
+	}
+
 	private String sentence(String cmd) {
 		return sentence(cmd, null);
 	}
@@ -634,6 +699,8 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				createAccessControl();
 				// Obtenim les regles i activem els triggers si correspon
 				updateAccessControl();
+			} else {
+				disableAccessControl();
 			}
 		} catch (Throwable th) {
 			if (debug) log.warn("Error in the access control verification", th); //$NON-NLS-1$
@@ -1749,7 +1816,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 					try {
 						stmt.execute();
 					} catch (SQLException e) {
-						if (e.getErrorCode() != -1952)
+						if (e.getErrorCode() != -1952 && !e.getMessage().contains("ORA-01952"))
 							handleSQLException(e);
 					} finally {
 						stmt.close();
