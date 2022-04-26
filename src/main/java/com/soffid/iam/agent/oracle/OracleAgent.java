@@ -89,7 +89,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 	static Hashtable hash = new Hashtable();
 
 	/* versió dels triggers del control d'accés */
-	private final static String VERSIO = "1.2"; //$NON-NLS-1$
+	private final static String VERSIO = "2.0"; //$NON-NLS-1$
 
 	/**
 	 * Constructor
@@ -283,172 +283,89 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 
 				// Creamos o reemplazamos el TRIGGER:
 				String cmd = "create or replace TRIGGER logon_audit_trigger AFTER logon ON database \n" + //$NON-NLS-1$
-						"  DECLARE \n"
-						+ //$NON-NLS-1$
-						"    seycon_accesscontrol_exception exception; \n"
-						+ //$NON-NLS-1$
-						"    User                         VARCHAR2(2048); \n"
-						+ //$NON-NLS-1$
-						"    programa                       VARCHAR2(2048); \n"
-						+ //$NON-NLS-1$
-						"    p_host                         VARCHAR2(2048); \n"
-						+ //$NON-NLS-1$
-						"    osuser                         VARCHAR2(2048); \n"
-						+ //$NON-NLS-1$
-						"    process                        VARCHAR2(2048); \n"
-						+ //$NON-NLS-1$
-						"    sessionid                      VARCHAR2(2048); \n"
-						+ //$NON-NLS-1$
-						"    ipaddress                      VARCHAR2(2048); \n"
-						+ //$NON-NLS-1$
-						"    existe                         INTEGER; \n"
-						+ //$NON-NLS-1$
-						"   begin \n"
-						+ //$NON-NLS-1$
-						"     /* NO FEM LOG DE L'User SYS A LOCALHOST */ \n"
-						+ //$NON-NLS-1$
-						"    --   if (UPPER(User) IN ('SYS') AND IPADDRESS='127.0.0.1') THEN RETURN; END IF;\n"
-						+ //$NON-NLS-1$
-						" \n"
-						+ //$NON-NLS-1$
-						"    /*OBTENEMOS PARAMETROS DEL USUARIO*/ \n"
-						+ //$NON-NLS-1$
-						"    select user into User from DUAL; \n"
-						+ //$NON-NLS-1$
-						"    SELECT nvl(SYS_CONTEXT('USERENV','IP_ADDRESS'),'127.0.0.1') INTO IPADDRESS FROM DUAL; \n"
-						+ //$NON-NLS-1$
-						"    select nvl(module,' ') INTO programa from v$session where audsid = userenv('sessionid') and username is not null and sid=(select SID from v$mystat where rownum=1); \n"
-						+ //$NON-NLS-1$
-						"    SELECT SYS_CONTEXT('USERENV','OS_USER') INTO osuser from dual; \n"
-						+ //$NON-NLS-1$
-						"    select SYS_CONTEXT('USERENV','SESSIONID') into SESSIONID from DUAL; \n"
-						+ //$NON-NLS-1$
-						" \n"
-						+ //$NON-NLS-1$
-						"     /*VERIFICAMOS ENTRADA: */ \n"
-						+ //$NON-NLS-1$
-						"    if (UPPER(User) in ('SYS','SYSTEM')) then EXISTE:=1; /*PROCESOS DE ESTOS USUARIOS (SIN SER DBA)*/ \n"
-						+ //$NON-NLS-1$
-						"    else \n"
-						+ //$NON-NLS-1$
-						"      select COUNT(*) INTO EXISTE from sc_or_conacc \n"
-						+ //$NON-NLS-1$
-						"      where ( soc_user is null or upper(User) like upper(soc_user)) \n"
-						+ //$NON-NLS-1$
-						"       and \n"
-						+ //$NON-NLS-1$
-						"      ( soc_role is null \n"
-						+ //$NON-NLS-1$
-						"        OR EXISTS \n"
-						+ //$NON-NLS-1$
-						"        (select 1 from sc_or_role where sor_grantee=User and sor_granted_role = soc_role) \n"
-						+ //$NON-NLS-1$
-						"      ) \n"
-						+ //$NON-NLS-1$
-						"      and (IPADDRESS like SOC_HOST) and (UPPER(PROGRAMA) like UPPER(SOC_PROGRAM)); \n"
-						+ //$NON-NLS-1$
-						"    END IF; \n"
-						+ //$NON-NLS-1$
-						" \n"
-						+ //$NON-NLS-1$
-						"    /* VERIFICAMOS ENTRADA*/ \n"
-						+ //$NON-NLS-1$
-						"    IF EXISTE=0 THEN \n"
-						+ //$NON-NLS-1$
-						"      savepoint START_LOGGING_ERROR; \n"
-						+ //$NON-NLS-1$
-						"      insert into SC_OR_ACCLOG ( \n"
-						+ //$NON-NLS-1$
-						"        SAC_USER_ID, \n"
-						+ //$NON-NLS-1$
-						"        SAC_SESSION_ID, \n"
-						+ //$NON-NLS-1$
-						"        SAC_PROCESS, \n"
-						+ //$NON-NLS-1$
-						"        SAC_HOST, \n"
-						+ //$NON-NLS-1$
-						"        SAC_LOGON_DAY, \n"
-						+ //$NON-NLS-1$
-						"        SAC_OS_USER, \n"
-						+ //$NON-NLS-1$
-						"        SAC_PROGRAM \n"
-						+ //$NON-NLS-1$
-						"      \n)"
-						+ //$NON-NLS-1$
-						" \n"
-						+ //$NON-NLS-1$
-						"      SELECT \n"
-						+ //$NON-NLS-1$
-						"        User,     	/* user_id */ \n"
-						+ //$NON-NLS-1$
-						"        sessionid,     /* session_id */ \n"
-						+ //$NON-NLS-1$
-						"        'not-allowed', /* process */ \n"
-						+ //$NON-NLS-1$
-						"        ipaddress,     /* host */ \n"
-						+ //$NON-NLS-1$
-						"        Sysdate,       /* LOGON_DAY */ \n"
-						+ //$NON-NLS-1$
-						"        osuser,        /* OSUSER */ \n"
-						+ //$NON-NLS-1$
-						"        PROGRAMA       /* PROGRAM */ \n"
-						+ //$NON-NLS-1$
-						"      FROM dual; \n"
-						+ //$NON-NLS-1$
-						"      commit; \n"
-						+ //$NON-NLS-1$
-						"      Raise SEYCON_ACCESSCONTROL_EXCEPTION; \n"
-						+ //$NON-NLS-1$
-						"    ELSE \n"
-						+ //$NON-NLS-1$
-						"      /* registrem el logon correcte */ \n"
-						+ //$NON-NLS-1$
-						"      INSERT INTO SC_OR_ACCLOG ( \n"
-						+ //$NON-NLS-1$
-						"        SAC_USER_ID, \n"
-						+ //$NON-NLS-1$
-						"        SAC_SESSION_ID, \n"
-						+ //$NON-NLS-1$
-						"        SAC_PROCESS, \n"
-						+ //$NON-NLS-1$
-						"        SAC_HOST, \n"
-						+ //$NON-NLS-1$
-						"        SAC_LOGON_DAY, \n"
-						+ //$NON-NLS-1$
-						"        SAC_OS_USER, \n"
-						+ //$NON-NLS-1$
-						"        SAC_PROGRAM \n"
-						+ //$NON-NLS-1$
-						"      ) \n"
-						+ //$NON-NLS-1$
-						"      SELECT \n"
-						+ //$NON-NLS-1$
-						"        User, 	/* user_id  */ \n"
-						+ //$NON-NLS-1$
-						"        sessionid, /* session_id */ \n"
-						+ //$NON-NLS-1$
-						"        'logon',   /* process */ \n"
-						+ //$NON-NLS-1$
-						"        ipaddress, /* host */ \n"
-						+ //$NON-NLS-1$
-						"        Sysdate,   /* LOGON_DAY */ \n"
-						+ //$NON-NLS-1$
-						"        osuser,    /* OSUSER */ \n"
-						+ //$NON-NLS-1$
-						"        Programa   /* PROGRAM */ \n"
-						+ //$NON-NLS-1$
-						"      FROM DUAL; \n"
-						+ //$NON-NLS-1$
-						"    end if; \n"
-						+ //$NON-NLS-1$
-						"  EXCEPTION \n"
-						+ //$NON-NLS-1$
-						"  when SEYCON_ACCESSCONTROL_EXCEPTION then \n"
-						+ //$NON-NLS-1$
-						"    RAISE_APPLICATION_ERROR (-20000, 'LOGON Error: You are not allowed to connect to this database '); \n"
-						+ //$NON-NLS-1$
+						"  DECLARE \n"						+ //$NON-NLS-1$
+						"    seycon_accesscontrol_exception exception; \n"						+ //$NON-NLS-1$
+						"    usuari                         VARCHAR2(2048); \n"						+ //$NON-NLS-1$
+						"    programa                       VARCHAR2(2048); \n"						+ //$NON-NLS-1$
+						"    p_host                         VARCHAR2(2048); \n"						+ //$NON-NLS-1$
+						"    osuser                         VARCHAR2(2048); \n"						+ //$NON-NLS-1$
+						"    process                        VARCHAR2(2048); \n"						+ //$NON-NLS-1$
+						"    sessionid                      VARCHAR2(2048); \n"						+ //$NON-NLS-1$
+						"    ipaddress                      VARCHAR2(2048); \n"						+ //$NON-NLS-1$
+						"    existe                         INTEGER; \n"						+ //$NON-NLS-1$
+						"   begin \n"						+ //$NON-NLS-1$
+						"     /* NO FEM LOG DE L'User SYS A LOCALHOST */ \n"						+ //$NON-NLS-1$
+						"    --   if (UPPER(User) IN ('SYS') AND IPADDRESS='127.0.0.1') THEN RETURN; END IF;\n"						+ //$NON-NLS-1$
+						" \n"						+ //$NON-NLS-1$
+						"    /*OBTENEMOS PARAMETROS DEL USUARIO*/ \n"					+ //$NON-NLS-1$
+						"    select user into usuari from DUAL; \n"						+ //$NON-NLS-1$
+						"    SELECT nvl(SYS_CONTEXT('USERENV','IP_ADDRESS'),'127.0.0.1') INTO IPADDRESS FROM DUAL; \n"						+ //$NON-NLS-1$
+						"    select nvl(module,' ') INTO programa from v$session where audsid = userenv('sessionid') and username is not null and sid=(select SID from v$mystat where rownum=1); \n"						+ //$NON-NLS-1$
+						"    SELECT SYS_CONTEXT('USERENV','OS_USER') INTO osuser from dual; \n"						+ //$NON-NLS-1$
+						"    select SYS_CONTEXT('USERENV','SESSIONID') into SESSIONID from DUAL; \n"						+ //$NON-NLS-1$
+						" \n"						+ //$NON-NLS-1$
+						"     /*VERIFICAMOS ENTRADA: */ \n"						+ //$NON-NLS-1$
+						"    if (UPPER(usuari) in ('SYS','SYSTEM')) then EXISTE:=1; /*PROCESOS DE ESTOS USUARIOS (SIN SER DBA)*/ \n"						+ //$NON-NLS-1$
+						"    else \n"						+ //$NON-NLS-1$
+						"      select COUNT(*) INTO EXISTE from sc_or_conacc \n"						+ //$NON-NLS-1$
+						"      where ( soc_user is null or upper(usuari) like upper(soc_user)) \n"						+ //$NON-NLS-1$
+						"       and \n"						+ //$NON-NLS-1$
+						"      ( soc_role is null \n"						+ //$NON-NLS-1$
+						"        OR EXISTS \n"						+ //$NON-NLS-1$
+						"        (select 1 from sc_or_role where sor_grantee=usuari and sor_granted_role = soc_role) \n"						+ //$NON-NLS-1$
+						"      ) \n"						+ //$NON-NLS-1$
+						"      and (IPADDRESS like SOC_HOST) and (UPPER(PROGRAMA) like UPPER(SOC_PROGRAM)); \n"						+ //$NON-NLS-1$
+						"    END IF; \n"						+ //$NON-NLS-1$
+						" \n"						+ //$NON-NLS-1$
+						"    /* VERIFICAMOS ENTRADA*/ \n"						+ //$NON-NLS-1$
+						"    IF EXISTE=0 THEN \n"						+ //$NON-NLS-1$
+						"      savepoint START_LOGGING_ERROR; \n"						+ //$NON-NLS-1$
+						"      insert into SC_OR_ACCLOG ( \n"						+ //$NON-NLS-1$
+						"        SAC_USER_ID, \n"						+ //$NON-NLS-1$
+						"        SAC_SESSION_ID, \n"						+ //$NON-NLS-1$
+						"        SAC_PROCESS, \n"						+ //$NON-NLS-1$
+						"        SAC_HOST, \n"						+ //$NON-NLS-1$
+						"        SAC_LOGON_DAY, \n"						+ //$NON-NLS-1$
+						"        SAC_OS_USER, \n"						+ //$NON-NLS-1$
+						"        SAC_PROGRAM \n"						+ //$NON-NLS-1$
+						"      \n)"						+ //$NON-NLS-1$
+						" \n"						+ //$NON-NLS-1$
+						"      SELECT \n"						+ //$NON-NLS-1$
+						"        usuari,     	/* user_id */ \n"						+ //$NON-NLS-1$
+						"        sessionid,     /* session_id */ \n"						+ //$NON-NLS-1$
+						"        'not-allowed', /* process */ \n"						+ //$NON-NLS-1$
+						"        ipaddress,     /* host */ \n"						+ //$NON-NLS-1$
+						"        Sysdate,       /* LOGON_DAY */ \n"						+ //$NON-NLS-1$
+						"        osuser,        /* OSUSER */ \n"						+ //$NON-NLS-1$
+						"        PROGRAMA       /* PROGRAM */ \n"						+ //$NON-NLS-1$
+						"      FROM dual; \n"						+ //$NON-NLS-1$
+						"      commit; \n"						+ //$NON-NLS-1$
+						"      Raise SEYCON_ACCESSCONTROL_EXCEPTION; \n"						+ //$NON-NLS-1$
+						"    ELSE \n"						+ //$NON-NLS-1$
+						"      /* registrem el logon correcte */ \n"						+ //$NON-NLS-1$
+						"      INSERT INTO SC_OR_ACCLOG ( \n"						+ //$NON-NLS-1$
+						"        SAC_USER_ID, \n"						+ //$NON-NLS-1$
+						"        SAC_SESSION_ID, \n"						+ //$NON-NLS-1$
+						"        SAC_PROCESS, \n"						+ //$NON-NLS-1$
+						"        SAC_HOST, \n"						+ //$NON-NLS-1$
+						"        SAC_LOGON_DAY, \n"						+ //$NON-NLS-1$
+						"        SAC_OS_USER, \n"						+ //$NON-NLS-1$
+						"        SAC_PROGRAM \n"						+ //$NON-NLS-1$
+						"      ) \n"						+ //$NON-NLS-1$
+						"      SELECT \n"						+ //$NON-NLS-1$
+						"        usuari, 	/* user_id  */ \n"						+ //$NON-NLS-1$
+						"        sessionid, /* session_id */ \n"						+ //$NON-NLS-1$
+						"        'logon',   /* process */ \n"						+ //$NON-NLS-1$
+						"        ipaddress, /* host */ \n"						+ //$NON-NLS-1$
+						"        Sysdate,   /* LOGON_DAY */ \n"						+ //$NON-NLS-1$
+						"        osuser,    /* OSUSER */ \n"						+ //$NON-NLS-1$
+						"        Programa   /* PROGRAM */ \n"						+ //$NON-NLS-1$
+						"      FROM DUAL; \n"						+ //$NON-NLS-1$
+						"    end if; \n"						+ //$NON-NLS-1$
+						"  EXCEPTION \n"						+ //$NON-NLS-1$
+						"  when SEYCON_ACCESSCONTROL_EXCEPTION then \n"						+ //$NON-NLS-1$
+						"    RAISE_APPLICATION_ERROR (-20000, 'LOGON Error: You are not allowed to connect to this database '); \n"						+ //$NON-NLS-1$
 						"  END; \n"; //$NON-NLS-1$
-
 				stmt = sqlConnection.prepareStatement(sentence(cmd, null));
 				stmt.execute();
 				stmt.close();
@@ -484,7 +401,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				String cmd = "create or replace trigger LOGOFF_AUDIT_TRIGGER before logoff on database \n" + //$NON-NLS-1$
 						"  DECLARE \n"
 						+ //$NON-NLS-1$
-						"    User   varchar2(2048); \n"
+						"    usuari   varchar2(2048); \n"
 						+ //$NON-NLS-1$
 						"    IPADDRESS      varchar2(2048); \n"
 						+ //$NON-NLS-1$
@@ -492,13 +409,13 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 						+ //$NON-NLS-1$
 						"  BEGIN \n"
 						+ //$NON-NLS-1$
-						"    /* NO FEM LOG DE L'User SYS A LOCALHOST */ \n"
+						"    /* NO FEM LOG DE L'usuari SYS A LOCALHOST */ \n"
 						+ //$NON-NLS-1$
-						"    --   if (UPPER(User) IN ('SYS') AND IPADDRESS='127.0.0.1') THEN RETURN; END IF;\n"
+						"    --   if (UPPER(usuari) IN ('SYS') AND IPADDRESS='127.0.0.1') THEN RETURN; END IF;\n"
 						+ //$NON-NLS-1$
 						" \n"
 						+ //$NON-NLS-1$
-						"    select user into User from DUAL; \n"
+						"    select user into usuari from DUAL; \n"
 						+ //$NON-NLS-1$
 						"    /*  si es null, utilizamos el localhost */ \n"
 						+ //$NON-NLS-1$
@@ -532,7 +449,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 						+ //$NON-NLS-1$
 						"    SELECT \n"
 						+ //$NON-NLS-1$
-						"      User,                             /* user_id */ \n"
+						"      usuari,                             /* user_id */ \n"
 						+ //$NON-NLS-1$
 						"      Sys_Context('USERENV','SESSIONID'), /* session_id */ \n"
 						+ //$NON-NLS-1$
@@ -1531,6 +1448,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 					stmt = sqlConnection
 							.prepareStatement(sentence("SELECT SOC_USER,SOC_ROLE,SOC_HOST,SOC_PROGRAM, SOC_CAC_ID from SC_OR_CONACC")); //$NON-NLS-1$
 					rset = stmt.executeQuery();
+					
 
 					while (rset.next()) {
 						boolean found = false;
@@ -1554,10 +1472,12 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 						if (!found) {// No l'hem trobat: l'esborrem
 							String condicions = ""; //$NON-NLS-1$
 							// SOC_USER,SOC_ROLE,SOC_HOST,SOC_PROGRAM
+							int param = 1;
 							if (s_user == null)
 								condicions += " AND SOC_USER is null "; //$NON-NLS-1$
-							else
+							else {
 								condicions += " AND SOC_USER=? "; //$NON-NLS-1$
+							}
 							if (s_role == null)
 								condicions += " AND SOC_ROLE is null "; //$NON-NLS-1$
 							else
