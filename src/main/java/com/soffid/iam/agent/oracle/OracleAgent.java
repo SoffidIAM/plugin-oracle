@@ -1557,7 +1557,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		PreparedStatement stmt = null;
 		ResultSet rset = null;
 		// ArrayList<LogEntry> logs = new ArrayList<LogEntry>();
-		Collection<LogEntry> logs = null;
+		Collection<LogEntry> logs = new LinkedList<LogEntry>();
 		try {
 			Connection sqlConnection = getConnection();
 			// Obtenemos los logs
