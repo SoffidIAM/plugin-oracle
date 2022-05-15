@@ -71,11 +71,13 @@ maven_release:
     - git pull gitlab "$CI_COMMIT_PATH" --no-edit
     - git config --global user.email "$GITLAB_USER_EMAIL"
     - git config --global user.name "$GITLAB_USER_NAME"
+    - cat pom.xml
     - mvn release:prepare $MAVEN_CLI_OPTS -s $DEPLOYER_SETTINGS --batch-mode
+    - cat pom.xml
     - echo "$CI_COMMIT_BRANCH"
     - git remote -v
     - git push gitlab "$CI_COMMIT_BRANCH"
-    - git push gitlab --all"
+    - git push gitlab --all
     - git push gitlab --tags
     - mvn release:perform $MAVEN_CLI_OPTS -s $DEPLOYER_SETTINGS -Dgoals=deploy -DskipTests=true -Darguments="$MAVEN_CERT_OPTS"
   rules:
