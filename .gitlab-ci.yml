@@ -68,14 +68,12 @@ release:
     - echo "$CI_PROJECT_PATH"
     - 'git remote add gitlab "ssh://git@gitlab.internal.soffid.com:2224/${CI_PROJECT_PATH}.git"' 
     - git pull gitlab "$CI_COMMIT_PATH" --no-edit
-#    - git fetch origin --tags
-#    - git checkout -B "$CI_BUILD_REF_NAME"  
-#    - git config --global user.email "$GITLAB_USER_EMAIL"
-#    - git config --global user.name "$GITLAB_USER_NAME"
-#    - mvn release:prepare $MAVEN_CLI_OPTS -s $DEPLOYER_SETTINGS --batch-mode
-#    - git push origin "$CI_COMMIT_BRANCH"
-#    - git push origin --tags
-#    - mvn release:perform $MAVEN_CLI_OPTS -s $DEPLOYER_SETTINGS -DskipTests=true 
+    - git config --global user.email "$GITLAB_USER_EMAIL"
+    - git config --global user.name "$GITLAB_USER_NAME"
+    - mvn release:prepare $MAVEN_CLI_OPTS -s $DEPLOYER_SETTINGS --batch-mode
+    - git push gitlab "$CI_COMMIT_BRANCH"
+    - git push gitlab --tags
+    - mvn release:perform $MAVEN_CLI_OPTS -s $DEPLOYER_SETTINGS -DskipTests=true 
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: manual
