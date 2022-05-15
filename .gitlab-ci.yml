@@ -66,13 +66,15 @@ maven_release:
     - rm -rf target/checkout
     - mvn scm:checkout -DscmVersion="$CI_COMMIT_BRANCH" -DscmVersionType=branch
     - cd target/checkout
-    - echo "$CI_PROJECT_PATH"
     - 'git remote add gitlab "ssh://git@gitlab.internal.soffid.com:2224/${CI_PROJECT_PATH}.git"' 
     - git pull gitlab "$CI_COMMIT_PATH" --no-edit
     - git config --global user.email "$GITLAB_USER_EMAIL"
     - git config --global user.name "$GITLAB_USER_NAME"
     - mvn release:prepare $MAVEN_CLI_OPTS -s $DEPLOYER_SETTINGS --batch-mode
+    - echo "$CI_COMMIT_BRANCH"
+    - git remote -v
     - git push gitlab "$CI_COMMIT_BRANCH"
+    - git push gitlab --all"
     - git push gitlab --tags
     - mvn release:perform $MAVEN_CLI_OPTS -s $DEPLOYER_SETTINGS -Dgoals=deploy -DskipTests=true -Darguments="$MAVEN_CERT_OPTS"
   rules:
