@@ -47,8 +47,8 @@ deploy:jdk8:
     - 'echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
     - 'base64 -d $KEYSTORE >/tmp/keystore.p12'
     - git checkout -B "$CI_BUILD_REF_NAME"  
-    - git config --global user.email "gitlab@soffid.com"
-    - git config --global user.name "Gitlab CI agent"
+    - git config --global user.email "$GITLAB_USER_EMAIL"
+    - git config --global user.name "$GITLAB_USER_NAME"
     - mvn release:prepare $MAVEN_CLI_OPTS -s $DEPLOYER_SETTINGS --batch-mode
     - git push origin "$CI_COMMIT_BRANCH"
     - git push origin --tags
