@@ -43,7 +43,7 @@ deploy:jdk8:
     - chmod 600 "$GITLAB_SSH_KEY"
     - 'ssh-add "$GITLAB_SSH_KEY"'
     - mkdir -p ~/.ssh
-    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh
+    - 'echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
     - 'base64 -d $KEYSTORE >/tmp/keystore.p12'
     - git checkout -B "$CI_BUILD_REF_NAME"  
     - mvn release:prepare $MAVEN_CLI_OPTS -s $DEPLOYER_SETTINGS --batch-mode
