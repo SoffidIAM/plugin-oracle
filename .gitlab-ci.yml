@@ -42,6 +42,7 @@ deploy:jdk8:
     - 'eval $(ssh-agent -s)'
     - chmod 600 "$GITLAB_SSH_KEY"
     - 'ssh-add "$GITLAB_SSH_KEY"'
+    - 'ssh-add "$GITHUB_SSH_KEY"'
     - mkdir -p ~/.ssh
     - 'echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
     - 'base64 -d $KEYSTORE >/tmp/keystore.p12'
@@ -49,6 +50,8 @@ deploy:jdk8:
     - git config --global user.email "gitlab@soffid.com"
     - git config --global user.name "Gitlab CI agent"
     - mvn release:prepare $MAVEN_CLI_OPTS -s $DEPLOYER_SETTINGS --batch-mode
+    - git push origin "$CI_COMMIT_BRANCH"
+    - git push origin --tags
     - mvn release:perform $MAVEN_CLI_OPTS -s $DEPLOYER_SETTINGS -DskipTests=true 
   only:
     variables:
