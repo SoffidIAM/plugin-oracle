@@ -38,6 +38,8 @@ verify:jdk8:
 deploy:jdk8:
   stage: deploy
   script:
+    - 'which ssh-agent'
+    - 'eval $(ssh-agent -s)'
     - 'base64 -d $KEYSTORE >/tmp/keystore.p12'
     - 'mvn $MAVEN_CLI_OPTS deploy -s $DEPLOYER_SETTINGS'
   only:
