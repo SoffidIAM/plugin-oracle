@@ -62,8 +62,8 @@ release:
     - mkdir -p ~/.ssh
     - 'echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
     - 'base64 -d $KEYSTORE >/tmp/keystore.p12'
-    - mvn scm:checkin 
-    - mvn scm:checkout -DscmVersion="$CI_BUILD_REF_NAME"
+    - rm -rf target/checkout
+    - mvn scm:checkout -DscmVersion="$CI_COMMIT_BRANCH" -DscmVersionType=branch
 #    - git fetch origin --tags
 #    - git checkout -B "$CI_BUILD_REF_NAME"  
 #    - git config --global user.email "$GITLAB_USER_EMAIL"
