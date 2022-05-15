@@ -52,7 +52,7 @@ deploy:
       - $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 release:
-  stage: release
+  stage: deploy
   script:
     - 'which ssh-agent'
     - 'eval $(ssh-agent -s)'
