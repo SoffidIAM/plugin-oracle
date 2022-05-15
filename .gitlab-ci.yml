@@ -5,7 +5,8 @@ variables:
   # As of Maven 3.3.0 instead of this you may define these options in `.mvn/maven.config` so the same config is used
   # when running from the command line.
   # `installAtEnd` and `deployAtEnd` are only effective with recent version of the corresponding plugins.
-  MAVEN_CLI_OPTS: "--batch-mode --errors --fail-at-end --show-version -DinstallAtEnd=true -DdeployAtEnd=true -Djavax.net.ssl.keyStore=/tmp/keystore.p12  -Djavax.net.ssl.keyStoreType=pkcs12 -Djavax.net.ssl.keyStorePassword=$KEYSTORE_PASSWORD"
+  MAVEN_CERT_OPTS: "-Djavax.net.ssl.keyStore=/tmp/keystore.p12  -Djavax.net.ssl.keyStoreType=pkcs12 -Djavax.net.ssl.keyStorePassword=$KEYSTORE_PASSWORD"
+  MAVEN_CLI_OPTS: "--batch-mode --errors --fail-at-end --show-version -DinstallAtEnd=true -DdeployAtEnd=true $MAVEN_CERT_OPTS"
 
 # This template uses jdk8 for verifying and deploying images
 image: maven:3.8.5-openjdk-8
@@ -73,7 +74,7 @@ release:
     - mvn release:prepare $MAVEN_CLI_OPTS -s $DEPLOYER_SETTINGS --batch-mode
     - git push gitlab "$CI_COMMIT_BRANCH"
     - git push gitlab --tags
-    - mvn release:perform $MAVEN_CLI_OPTS -s $DEPLOYER_SETTINGS -Dgoals=deploy -DskipTests=true 
+    - mvn release:perform $MAVEN_CLI_OPTS -s $DEPLOYER_SETTINGS -Dgoals=deploy -DskipTests=true -Darguments="$MAVEN_CERT_OPTS"
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: manual
