@@ -73,7 +73,7 @@ release:
     - mvn release:prepare $MAVEN_CLI_OPTS -s $DEPLOYER_SETTINGS --batch-mode
     - git push gitlab "$CI_COMMIT_BRANCH"
     - git push gitlab --tags
-    - mvn release:perform $MAVEN_CLI_OPTS -s $DEPLOYER_SETTINGS -DskipTests=true 
+    - mvn release:perform $MAVEN_CLI_OPTS -s $DEPLOYER_SETTINGS -Dgoals=deploy -DskipTests=true 
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: manual
