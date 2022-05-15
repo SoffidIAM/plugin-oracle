@@ -35,8 +35,24 @@ verify:jdk8:
 # For deploying packages to GitLab's Maven Repository: See https://docs.gitlab.com/ee/user/packages/maven_repository/index.html#create-maven-packages-with-gitlab-cicd for more details.
 # Please note: The GitLab Maven Repository is currently only available in GitLab Premium / Ultimate.
 # For `master` branch run `mvn deploy` automatically.
-deploy:jdk8:
+deploy:
   stage: deploy
+  script:
+    - 'which ssh-agent'
+    - 'eval $(ssh-agent -s)'
+    - chmod 600 "$GITLAB_SSH_KEY"  "$GITHUB_SSH_KEY"
+    - 'ssh-add "$GITLAB_SSH_KEY"'
+    - 'ssh-add "$GITHUB_SSH_KEY"'
+    - mkdir -p ~/.ssh
+    - 'echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
+    - 'base64 -d $KEYSTORE >/tmp/keystore.p12'
+    - mvn deploy $MAVEN_CLI_OPTS -s $DEPLOYER_SETTINGS
+  only:
+    variables:
+      - $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+release:
+  stage: release
   script:
     - 'which ssh-agent'
     - 'eval $(ssh-agent -s)'
@@ -54,6 +70,6 @@ deploy:jdk8:
     - git push origin "$CI_COMMIT_BRANCH"
     - git push origin --tags
     - mvn release:perform $MAVEN_CLI_OPTS -s $DEPLOYER_SETTINGS -DskipTests=true 
-  only:
-    variables:
-      - $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
