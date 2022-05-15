@@ -40,7 +40,7 @@ deploy:jdk8:
   script:
     - 'which ssh-agent'
     - 'eval $(ssh-agent -s)'
-    - chmod 600 "$GITLAB_SSH_KEY"
+    - chmod 600 "$GITLAB_SSH_KEY"  "$GITHUB_SSH_KEY"
     - 'ssh-add "$GITLAB_SSH_KEY"'
     - 'ssh-add "$GITHUB_SSH_KEY"'
     - mkdir -p ~/.ssh
