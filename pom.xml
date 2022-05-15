@@ -38,7 +38,7 @@
 		</license>
 	</licenses>
 	<scm>
-		<connection>scm:git:http://gitlab.internal.soffid.com/Soffid/plugins/oracle.git</connection>
+		<connection>scm:git:ssh://git@github.com/SoffidIAM/plugin-oracle.git</connection>
 		<tag>HEAD</tag>
 	</scm>
 	<properties>
