@@ -101,8 +101,7 @@ release_job_mvn:
       done)
     - echo $links
     - wget --header "PRIVATE_TOKEN: $CI_JOB_TOKEN" 
-        https://gitlab.internal.soffid.com/api/v4/project/$CI_PROJECT_ID/releases
-        --post-data '{"tag-name": "oracle-plugin-2.2.6.12", "name": "Release test", "assets":{"links": '$links'}, "description": "Release test"}'
+        https://gitlab.internal.soffid.com/api/v4/project/$CI_PROJECT_ID/releases         --post-data '{"tag-name": "oracle-plugin-2.2.6.12", "name": "Release test", "assets":{"links": '$links'}, "description": "Release test"}'
   rules: 
 #    - if: $CI_COMMIT_TAG                  # Run this job when a tag is created manually
      - when: manual
