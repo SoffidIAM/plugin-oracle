@@ -16,6 +16,7 @@ image: maven:3.8.5-openjdk-8
 cache:
   paths:
     - .m2/repository
+    - .m2/tags.json
 
 # For merge requests do not `deploy` but only run `verify`.
 # See https://maven.apache.org/guides/introduction/introduction-to-the-lifecycle.html
@@ -86,28 +87,21 @@ maven_release:
 
 release_job_mvn:
   stage: deploy
-  artifacts: 
-    paths:
-      - tags.json
-    expire_in: 1 day
   script:
-    - mvn -q -Dexec.executable='echo' -Dexec.args='${project.groupId} ${project.version} ${project.artifactId} ${project.packaging}' exec:exec | while read a b c d ; do echo '--asset-link='"'"'{"name":"'$b'","url":"https://download.soffid.com/maven/'$(echo $a|sed 's/\./\//g' )/$c/$b/$c.$d'"}'"'"; done >tags.json
+    - mvn -q -Dexec.executable='echo' -Dexec.args='${project.groupId} ${project.version} ${project.artifactId} ${project.packaging}' exec:exec | while read a b c d ; do echo '--asset-link='"'"'{"name":"'$b'","url":"https://download.soffid.com/maven/'$(echo $a|sed 's/\./\//g' )/$c/$b/$c.$d'"}'"'"; done >.m2/tags.json
   rules: 
 #    - if: $CI_COMMIT_TAG                  # Run this job when a tag is created manually
      - when: manual
 
 release_job:
   stage: deploy
-  artifacts: 
-    paths:
-      - tags.json
-    expire_in: 1 day
   image: registry.gitlab.com/gitlab-org/release-cli:latest
   rules: 
 #    - if: $CI_COMMIT_TAG                  # Run this job when a tag is created manually
      - when: manual
   script:
-    - cat tags.json
+    - ls -al .m2
+    - cat .m2/tags.json
 #  release:
 #    name: 'Release $CI_COMMIT_TAG'
 #    description: 'Created using the release-cli $EXTRA_DESCRIPTION'  # $EXTRA_DESCRIPTION must be defined
