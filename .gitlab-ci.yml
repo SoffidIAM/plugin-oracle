@@ -56,7 +56,6 @@ deploy:
 maven_release:
   stage: deploy
   script:
-    - 'which ssh-agent'
     - 'eval $(ssh-agent -s)'
     - chmod 600 "$GITLAB_SSH_KEY"  "$GITHUB_SSH_KEY"
     - 'ssh-add "$GITLAB_SSH_KEY"'
@@ -67,18 +66,13 @@ maven_release:
     - rm -rf ../clone
     - mvn scm:checkout -DscmVersion="$CI_COMMIT_BRANCH" -DscmVersionType=branch -DcheckoutDirectory=../clone
     - cd ../clone
-    - pwd
     - 'git remote add gitlab "ssh://git@gitlab.internal.soffid.com:2224/${CI_PROJECT_PATH}.git"' 
     - git pull gitlab "$CI_COMMIT_PATH" --no-edit
     - git config --global user.email "$GITLAB_USER_EMAIL"
     - git config --global user.name "$GITLAB_USER_NAME"
-    - cat pom.xml
     - mvn release:prepare $MAVEN_CLI_OPTS -s $DEPLOYER_SETTINGS --batch-mode
-    - cat pom.xml
-    - echo "$CI_COMMIT_BRANCH"
     - git remote -v
     - git push gitlab "$CI_COMMIT_BRANCH"
-    - git push gitlab --all
     - git push gitlab --tags
     - mvn release:perform $MAVEN_CLI_OPTS -s $DEPLOYER_SETTINGS -Dgoals=deploy -DskipTests=true -Darguments="$MAVEN_CERT_OPTS"
   rules:
