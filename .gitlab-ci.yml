@@ -89,15 +89,15 @@ release_job_mvn:
   stage: deploy
   script: 
     - links=$(
-      first="true"
+      first="true" ;
       mvn -q -Dexec.executable='echo' -Dexec.args='${project.groupId} ${project.version} ${project.artifactId} ${project.packaging}' exec:exec | 
-      while read a b c d 
+      while read a b c d ;
       do
-        if [[ "$first" == "false" ]]
+        if [[ "$first" == "false" ]] ;
         then 
-          echo , 
-        fi
-        first=false
+          echo ,  ;
+        fi ;
+        first=false ;
         echo '{"name":"'$b'","url":"https://download.soffid.com/maven/'$(echo $a|sed 's/\./\//g' )/$c/$b/$c.$d'","link_type":"other"}'; 
       done)
     - echo $links
