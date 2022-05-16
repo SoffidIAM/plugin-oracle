@@ -102,6 +102,12 @@ release_job:
   script:
     - ls -al .m2
     - cat .m2/tags.json
+    - >
+       release-cli --server-url https://gitlab.internal.soffid.com --job-token="$CI_JOB_TOKEN" --project-id "$CI_PROJECT_ID" \
+       $(cat .m2/tags.json) \
+       --name "$CI_COMMIT_TAG" \
+       --description "Automatically created $EXTRA_DESCRIPTION" \
+       --tag-name "$CI_COMMIT_TAG"
 #  release:
 #    name: 'Release $CI_COMMIT_TAG'
 #    description: 'Created using the release-cli $EXTRA_DESCRIPTION'  # $EXTRA_DESCRIPTION must be defined
