@@ -101,8 +101,8 @@ release_job_mvn:
         echo '{"name":"'$b'","url":"https://download.soffid.com/maven/'$(echo $a|sed 's/\./\//g' )/$c/$b/$c.$d'","link_type":"other"}'; 
       done)
     - echo $links
-    - "echo wget --header \"JOB-TOKEN: $CI_JOB_TOKEN\" --content-on-error https://gitlab.internal.soffid.com/api/v4/projects/$CI_PROJECT_ID/releases --post-data '{\"tag_name\": \"oracle-plugin-2.2.6.12\", \"name\": \"Release test\", \"assets\":{\"links\": '$links'}, \"description\": \"Release test\"}' " 
-    - "wget -O -  --header \"JOB-TOKEN: $CI_JOB_TOKEN\" --content-on-error https://gitlab.internal.soffid.com/api/v4/projects/$CI_PROJECT_ID/releases --method POST --body-data '{\"tag_name\": \"oracle-plugin-2.2.6.12\", \"name\": \"Release test\", \"assets\":{\"links\": '$links'}, \"description\": \"Release test\"}' " 
+    - "echo wget --header \"JOB-TOKEN: $CI_JOB_TOKEN\" --content-on-error https://gitlab.internal.soffid.com/api/v4/projects/$CI_PROJECT_ID/releases --post-data '{\"tag_name\": \"test\", \"name\": \"Release test\", \"assets\":{\"links\": ['$links']}, \"description\": \"Release test\"}' " 
+    - "wget -O - --header \"JOB-TOKEN: $CI_JOB_TOKEN\" --header \"Content-Type: application/json\" --content-on-error https://gitlab.internal.soffid.com/api/v4/projects/$CI_PROJECT_ID/releases --method POST --body-data '{\"tag_name\": \"oracle-plugin-2.2.6.12\", \"name\": \"Release test\", \"assets\":{\"links\": ['$links']}, \"description\": \"Release test\"}' " 
   rules: 
 #    - if: $CI_COMMIT_TAG                  # Run this job when a tag is created manually
      - when: manual
