@@ -24,7 +24,6 @@ cache:
   script:
     - 'base64 -d $KEYSTORE_JKS >/tmp/keystore.p12'
     - 'mvn $MAVEN_CLI_OPTS verify'
-    - mvn -q -Dexec.executable='echo' -Dexec.args='${project.groupId} ${project.version} ${project.artifactId} ${project.packaging}' exec:exec | while read a b c d ; do echo '--asset-link='"'"'{"name":"'$b'","url":"https://download.soffid.com/maven/'$(echo $a|sed 's/\./\//g' )/$c/$b/$c.$d'"}'"'"; done >target/tags
   except:
     variables:
       - $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -84,6 +83,14 @@ maven_release:
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: manual
+
+release_job_mvn:
+  stage: test
+  script:
+    - mvn -q -Dexec.executable='echo' -Dexec.args='${project.groupId} ${project.version} ${project.artifactId} ${project.packaging}' exec:exec | while read a b c d ; do echo '--asset-link='"'"'{"name":"'$b'","url":"https://download.soffid.com/maven/'$(echo $a|sed 's/\./\//g' )/$c/$b/$c.$d'"}'"'"; done >target/tags
+  rules: 
+#    - if: $CI_COMMIT_TAG                  # Run this job when a tag is created manually
+     - when: manual
 
 release_job:
   stage: deploy
