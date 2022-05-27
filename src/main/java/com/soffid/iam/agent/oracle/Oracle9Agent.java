@@ -63,7 +63,7 @@ import com.soffid.iam.sync.intf.UserMgr;
  * <P>
  */
 
-public class OracleAgent extends Agent implements UserMgr, RoleMgr,
+public class Oracle9Agent extends Agent implements UserMgr, RoleMgr,
 		AccessControlMgr, AccessLogMgr, ReconcileMgr2, ExtensibleObjectMgr {
 	private static final String PASSWORD_QUOTE_REPLACEMENT = "'";
 	/** Usuario Oracle */
@@ -100,7 +100,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 	 *            base de datos</LI> <LI>3 = contraseña con la que se protegerán
 	 *            los roles</LI>
 	 */
-	public OracleAgent() throws java.rmi.RemoteException {
+	public Oracle9Agent() throws java.rmi.RemoteException {
 		super();
 	}
 
@@ -484,7 +484,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		} catch (Exception e) {
 			e.printStackTrace();
 			throw new InternalErrorException(
-					Messages.getString("OracleAgent.AccessControlVerificationError"), e); //$NON-NLS-1$
+					Messages.getString("Oracle9Agent.AccessControlVerificationError"), e); //$NON-NLS-1$
 		} finally {
 			if (rsetCAC != null)
 				try {
@@ -551,7 +551,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			handleSQLException(e);
 		} catch (Exception e) {
 			e.printStackTrace();
-			throw new InternalErrorException(Messages.getString("OracleAgent.AccessControlVerificationError"), e); //$NON-NLS-1$
+			throw new InternalErrorException(Messages.getString("Oracle9Agent.AccessControlVerificationError"), e); //$NON-NLS-1$
 		} finally {
 			if (rsetCAC != null)
 				try {
@@ -693,7 +693,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			} catch (SQLException e) {
 				log.info("Error connecting to the database",e);
 				throw new InternalErrorException(
-						Messages.getString("OracleAgent.ConnectionError"), e); //$NON-NLS-1$
+						Messages.getString("Oracle9Agent.ConnectionError"), e); //$NON-NLS-1$
 			}
 		}
 		return conn;
@@ -1032,7 +1032,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		} catch (Exception e) {
 			e.printStackTrace();
 			throw new InternalErrorException(
-					Messages.getString("OracleAgent.ProcessingTaskError"), e); //$NON-NLS-1$
+					Messages.getString("Oracle9Agent.ProcessingTaskError"), e); //$NON-NLS-1$
 		} finally {
 			if (rset != null)
 				try {
@@ -1125,7 +1125,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				} catch (Exception e2) {
 				}
 			throw new InternalErrorException(
-					Messages.getString("OracleAgent.UpdatingPasswordError"), e); //$NON-NLS-1$
+					Messages.getString("Oracle9Agent.UpdatingPasswordError"), e); //$NON-NLS-1$
 		} finally {
 			if (stmt != null)
 				try {
@@ -1283,7 +1283,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				} catch (Exception e2) {
 				}
 			throw new InternalErrorException(
-					Messages.getString("OracleAgent.ErrorUpdatingRole"), e); //$NON-NLS-1$
+					Messages.getString("Oracle9Agent.ErrorUpdatingRole"), e); //$NON-NLS-1$
 		}
 	}
 
@@ -1337,7 +1337,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		} catch (Exception e) {
 			e.printStackTrace();
 			throw new InternalErrorException(
-					Messages.getString("OracleAgent.281"), e); //$NON-NLS-1$
+					Messages.getString("Oracle9Agent.281"), e); //$NON-NLS-1$
 		} finally {
 			if (rsetCAC != null)
 				try {
@@ -1425,9 +1425,9 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 
 			if (dispatcherInfo == null) {
 				setAccessControlActive(false); // desactivamos triggers
-				throw new Exception(Messages.getString("OracleAgent.282") //$NON-NLS-1$
+				throw new Exception(Messages.getString("Oracle9Agent.282") //$NON-NLS-1$
 						+ this.getSystem().getName()
-						+ Messages.getString("OracleAgent.283")); //$NON-NLS-1$
+						+ Messages.getString("Oracle9Agent.283")); //$NON-NLS-1$
 			}
 
 			if (dispatcherInfo.getEnabled()) { // getControlAccessActiu()
@@ -1526,7 +1526,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		} catch (Exception e) {
 			e.printStackTrace();
 			throw new InternalErrorException(
-					Messages.getString("OracleAgent.293"), e); //$NON-NLS-1$
+					Messages.getString("Oracle9Agent.293"), e); //$NON-NLS-1$
 		} finally { // tamquem
 			if (rset != null) {
 				try {
@@ -1615,7 +1615,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		} catch (Exception e) {
 			e.printStackTrace();
 			throw new InternalErrorException(
-					Messages.getString("OracleAgent.308"), e); //$NON-NLS-1$
+					Messages.getString("Oracle9Agent.308"), e); //$NON-NLS-1$
 		} finally {
 			if (rset != null)
 				try {
@@ -1768,7 +1768,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		} catch (Exception e) {
 			e.printStackTrace();
 			throw new InternalErrorException(
-					Messages.getString("OracleAgent.318"), e); //$NON-NLS-1$
+					Messages.getString("Oracle9Agent.318"), e); //$NON-NLS-1$
 		}
 	}
 
@@ -2070,7 +2070,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		} catch (Exception e) {
 			e.printStackTrace();
 			throw new InternalErrorException(
-					Messages.getString("OracleAgent.ErrorUpdatingUser"), e); //$NON-NLS-1$
+					Messages.getString("Oracle9Agent.ErrorUpdatingUser"), e); //$NON-NLS-1$
 		} finally {
 			if (rset != null)
 				try {
@@ -2123,7 +2123,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		} catch (Exception e) {
 			e.printStackTrace();
 			throw new InternalErrorException(
-					Messages.getString("OracleAgent.ErrorUpdatingUser"), e); //$NON-NLS-1$
+					Messages.getString("Oracle9Agent.ErrorUpdatingUser"), e); //$NON-NLS-1$
 		} finally {
 			if (rset != null)
 				try {
@@ -2174,7 +2174,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		} catch (Exception e) {
 			e.printStackTrace();
 			throw new InternalErrorException(
-					Messages.getString("OracleAgent.ErrorUpdatingUser"), e); //$NON-NLS-1$
+					Messages.getString("Oracle9Agent.ErrorUpdatingUser"), e); //$NON-NLS-1$
 		} finally {
 			if (rset != null)
 				try {
@@ -2218,7 +2218,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		} catch (Exception e) {
 			e.printStackTrace();
 			throw new InternalErrorException(
-					Messages.getString("OracleAgent.ErrorUpdatingUser"), e); //$NON-NLS-1$
+					Messages.getString("Oracle9Agent.ErrorUpdatingUser"), e); //$NON-NLS-1$
 		} finally {
 			if (rset != null)
 				try {
@@ -2263,7 +2263,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		} catch (Exception e) {
 			e.printStackTrace();
 			throw new InternalErrorException(
-					Messages.getString("OracleAgent.ErrorUpdatingUser"), e); //$NON-NLS-1$
+					Messages.getString("Oracle9Agent.ErrorUpdatingUser"), e); //$NON-NLS-1$
 		} finally {
 			if (rset != null)
 				try {
@@ -2313,7 +2313,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		} catch (Exception e) {
 			e.printStackTrace();
 			throw new InternalErrorException(
-					Messages.getString("OracleAgent.ErrorUpdatingUser"), e); //$NON-NLS-1$
+					Messages.getString("Oracle9Agent.ErrorUpdatingUser"), e); //$NON-NLS-1$
 		} finally {
 			if (rset != null)
 				try {
@@ -2403,7 +2403,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		public Collection<Map<String, Object>> invoke(String verb, String command, Map<String, Object> params)
 				throws InternalErrorException {
 			try {
-				return OracleAgent.this.invoke(verb, command, params);
+				return Oracle9Agent.this.invoke(verb, command, params);
 			} catch (RemoteException e) {
 				throw new InternalErrorException("Error executing command "+verb+" "+command, e);
 			}

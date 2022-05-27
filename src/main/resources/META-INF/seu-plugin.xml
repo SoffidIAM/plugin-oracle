@@ -3,11 +3,11 @@
 <seuServerPlugin xmlns="http://seu.sourceforge.net/schema/serverplugin"
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://seu.sourceforge.net/schema/ServerPlugin.xsd">
-	<name>Oracle plugin</name>
+	<name>Oracle 9 plugin</name>
 	<version>${pom.version}</version>
 	<agent>
-		<name>OracleAgent</name>
-		<javaClass>com.soffid.iam.agent.oracle.OracleAgent</javaClass>
+		<name>Oracle 9 Agent</name>
+		<javaClass>com.soffid.iam.agent.oracle.Oracle9Agent</javaClass>
 		<userInterface>OracleAgent.zul</userInterface>
 		<enableAccessControl>true</enableAccessControl>
 		<enableAttributeMapping>true</enableAttributeMapping>

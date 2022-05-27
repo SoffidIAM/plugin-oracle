@@ -16,6 +16,7 @@
 			<groupId>com.oracle</groupId>
 			<artifactId>ojdbc14</artifactId>
 			<version>10.2.0.4.0</version>
+			<classifier>noseal</classifier>
 		</dependency>
 		<dependency>
 			<groupId>com.soffid.iam.console</groupId>
@@ -55,6 +56,27 @@
 	        </dependency>
 	       </dependencies>
 	      </plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-shade-plugin</artifactId>
+				<version>1.2</version>
+				<executions>
+					<execution>
+						<id>afefeixdeps</id>
+						<phase>package</phase>
+						<goals>
+							<goal>shade</goal>
+						</goals>
+						<configuration>
+							<artifactSet>
+								<includes>
+									<include>com.oracle:ojdbc14:noseal</include>
+								</includes>
+							</artifactSet>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
 	    </plugins>
 	</build>
 	<pluginRepositories>

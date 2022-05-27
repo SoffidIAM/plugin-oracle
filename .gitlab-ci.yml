@@ -51,7 +51,7 @@ deploy:
     - mvn deploy $MAVEN_CLI_OPTS -s $DEPLOYER_SETTINGS
   only:
     variables:
-      - $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      - $CI_COMMIT_BRANCH == "oracle-9"
 
 maven_release:
   stage: deploy
@@ -76,7 +76,7 @@ maven_release:
     - git push gitlab --tags
     - mvn release:perform $MAVEN_CLI_OPTS -s $DEPLOYER_SETTINGS -Dgoals=deploy -DskipTests=true -Darguments="$MAVEN_CERT_OPTS"
   rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_BRANCH == "oracle-9"
       when: manual
 
 release_job_mvn:
