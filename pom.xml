@@ -7,7 +7,7 @@
 	</parent>
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.soffid.iam.sync.plugins</groupId>
-	<artifactId>oracle-plugin</artifactId>
+	<artifactId>oracle-9-plugin</artifactId>
 	<packaging>jar</packaging>
 	<name>Oracle plugin</name>
 	<version>2.2.6.13-SNAPSHOT</version>
