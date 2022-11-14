@@ -1053,6 +1053,10 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 	}
 
 	protected String quotePassword(Password pass) {
+		return quotePassword(pass, false);
+	}
+
+	protected String quotePassword(Password pass, boolean mustchange) {
 		return pass.getPassword().replaceAll("\"", PASSWORD_QUOTE_REPLACEMENT);
 	}
 
@@ -1586,12 +1590,12 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			while (rset.next() && logs.size() <= 100) { // Limitem per 100 file
 				LogEntry log = new LogEntry();
 				log.setHost(hostDB);
-				log.setProtocol("OTHER"); // De la tabla de serveis //$NON-NLS-1$
+				log.setProtocol("oracle"); // De la tabla de serveis //$NON-NLS-1$
 
 				// Usuario S.O.
-				log.setUser(rset.getString(6));
+				log.setUser(rset.getString(1));
 				log.SessionId = rset.getString(2);
-				log.info = "dbUser: " + rset.getString(1) + " Program: " + rset.getString(7); //7 = program //$NON-NLS-1$ //$NON-NLS-2$
+				log.info = "osUser: " + rset.getString(6) + " Program: " + rset.getString(7); //7 = program //$NON-NLS-1$ //$NON-NLS-2$
 				String proceso = rset.getString(3);
 				if ("logon".equalsIgnoreCase(proceso)) //$NON-NLS-1$
 					log.type = LogEntry.LOGON;
@@ -2390,6 +2394,29 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 
 	public ExtensibleObject getNativeObject(SoffidObjectType type, String object1, String object2)
 			throws RemoteException, InternalErrorException {
+		QueryHelper qh = new QueryHelper(getConnection());
+		List<Object[]> rows = new LinkedList<Object[]>();
+		try {
+			if (type == SoffidObjectType.OBJECT_ACCOUNT || type == SoffidObjectType.OBJECT_USER)
+				rows = qh.select("SELECT * FROM SYS.DBA_USERS WHERE USERNAME=?", object1);
+			if (type == SoffidObjectType.OBJECT_ROLE)
+				rows = qh.select("SELECT * FROM SYS.DBA_ROLES WHERE ROLE=?", object1);
+			if (type == SoffidObjectType.OBJECT_GRANT)
+				rows = qh.select("SELECT * FROM SYS.DBA_ROLE_PRIVS WHERE GRANTEE=? AND GRANTED_ROLE=?", object1, object2);
+		} catch (SQLException e) {
+			throw new InternalErrorException("Error fetching data", e);
+		}
+		for (Object[] row: rows) {
+			ExtensibleObject eo = new ExtensibleObject();
+			eo.setObjectType(type.toString());
+			List<String> names = qh.getColumnNames();
+			for (int i = 0; i < row.length; i++) {
+				Object v = row[i];
+				if (names.size() > i )
+					eo.setAttribute(qh.getColumnNames().get(i), row[i]);
+			}
+			return eo;
+		}
 		return null;
 	}
 
