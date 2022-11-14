@@ -1594,6 +1594,12 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 
 				// Usuario S.O.
 				log.setUser(rset.getString(1));
+				if (getServer().getAccountInfo(log.getUser(), getAgentName()) == null) {
+					if (getServer().getAccountInfo(log.getUser().toUpperCase(), getAgentName()) != null)
+						log.setUser(log.getUser().toUpperCase());
+					else if (getServer().getAccountInfo(log.getUser().toLowerCase(), getAgentName()) != null)
+						log.setUser(log.getUser().toLowerCase());
+				}
 				log.SessionId = rset.getString(2);
 				log.info = "osUser: " + rset.getString(6) + " Program: " + rset.getString(7); //7 = program //$NON-NLS-1$ //$NON-NLS-2$
 				String proceso = rset.getString(3);
