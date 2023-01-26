@@ -1,10 +1,5 @@
 <?xml version="1.0"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:maven="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
-	<parent>
-		<artifactId>plugins</artifactId>
-		<groupId>com.soffid.iam.sync</groupId>
-		<version>1.0.1</version>
-	</parent>
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.soffid.iam.sync.plugins</groupId>
 	<artifactId>oracle-9-plugin</artifactId>
@@ -97,7 +92,7 @@
 	<repositories>
 		<repository>
 			<id>central</id>
-			<url>http://repo1.maven.org/maven2</url>
+			<url>https://repo1.maven.org/maven2</url>
 		</repository>
 		<repository>
 			<id>soffid-open</id>
