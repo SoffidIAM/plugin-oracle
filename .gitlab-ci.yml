@@ -75,7 +75,7 @@ maven_release:
     - git remote -v
     - git push gitlab "$CI_COMMIT_BRANCH"
     - git push gitlab --tags
-    - mvn release:perform $MAVEN_CLI_OPTS $MAVEN_CERT_OPTS -s $DEPLOYER_SETTINGS -Dgoals=install -DskipTests=true -Darguments="$MAVEN_CERT_OPTS -Dmaven.javadoc.skip=true -Dmaven.test.skip=true"
+    - mvn release:perform $MAVEN_CLI_OPTS -s $DEPLOYER_SETTINGS -Dgoals=deploy -DskipTests=true -Darguments="$MAVEN_CERT_OPTS -Dmaven.javadoc.skip=true -Dmaven.test.skip=true"
    rules:
     - if: $CI_COMMIT_BRANCH == "oracle-9"
       when: manual
