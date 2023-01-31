@@ -9,7 +9,7 @@ variables:
   MAVEN_CLI_OPTS: "--batch-mode --errors --fail-at-end --show-version -DinstallAtEnd=true -DdeployAtEnd=true $MAVEN_CERT_OPTS"
 
 # This template uses jdk8 for verifying and deploying images
-image: maven:3.8.5-openjdk-11
+image: maven:3.8.5-openjdk-8
 
 # Cache downloaded dependencies and plugins between builds.
 # To keep cache across branches add 'key: "$CI_JOB_NAME"'
@@ -23,7 +23,7 @@ cache:
 .verify: &verify
   stage: test
   script:
-    - 'base64 -d $KEYSTORE_JKS >/tmp/keystore.p12'
+    - 'base64 -d $KEYSTORE >/tmp/keystore.p12'
     - 'mvn $MAVEN_CLI_OPTS verify'
   except:
     variables:
