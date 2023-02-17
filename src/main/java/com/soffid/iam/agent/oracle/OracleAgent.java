@@ -1558,6 +1558,8 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				this.getSystem().getId());
 		if ( !  dispatcherInfo.getEnabled())
 			return null;
+		
+		log.info("LogLoader: loading since "+From);
 		PreparedStatement stmt = null;
 		ResultSet rset = null;
 		// ArrayList<LogEntry> logs = new ArrayList<LogEntry>();
@@ -1566,16 +1568,15 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			Connection sqlConnection = getConnection();
 			// Obtenemos los logs
 			String consulta = "select SAC_USER_ID, SAC_SESSION_ID, SAC_PROCESS, SAC_HOST, " //$NON-NLS-1$
-					+ "SAC_LOGON_DAY, SAC_OS_USER, SAC_PROGRAM from SC_OR_ACCLOG "; //$NON-NLS-1$
-
+					+ "SAC_LOGON_DAY, SAC_OS_USER, SAC_PROGRAM from SC_OR_ACCLOG ";
 			if (From != null)
 				consulta += "WHERE SAC_LOGON_DAY>=? "; //$NON-NLS-1$
 			consulta += " order by SAC_LOGON_DAY "; //$NON-NLS-1$
-			if (debug) log.info("consulta: "+consulta);
+			if (debug) log.info("LogLoader query: "+consulta);
 			stmt = sqlConnection.prepareStatement(sentence(consulta));
-
 			if (From != null)
 				stmt.setTimestamp(1, new java.sql.Timestamp(From.getTime()));
+			stmt.setMaxRows(100);
 			rset = stmt.executeQuery();
 			String cadenaConnexio = db;
 			int posArroba = cadenaConnexio.indexOf("@"); //$NON-NLS-1$
@@ -1616,6 +1617,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				log.setDate(rset.getTimestamp(5));
 
 				logs.add(log);
+				this.log.info("LogLoader: loaded "+log.getDate());
 			}
 			rset.close();
 			stmt.close();
