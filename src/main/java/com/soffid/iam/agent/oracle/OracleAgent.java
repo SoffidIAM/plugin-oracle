@@ -894,38 +894,39 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			// Crear los roles si son necesarios
 			for (RoleGrant r : roles) {
 				if (r != null) {
-					// if(r.){
-					if (rolesPorDefecto == null)
-						rolesPorDefecto = "\"" + r.getRoleName().toUpperCase() + "\""; //$NON-NLS-1$ //$NON-NLS-2$
-					else
-						rolesPorDefecto = rolesPorDefecto + ",\"" + //$NON-NLS-1$
-								r.getRoleName().toUpperCase() + "\""; //$NON-NLS-1$
-					// }
-					stmt = sqlConnection
-							.prepareStatement(sentence("SELECT 1 FROM SYS.DBA_ROLES WHERE ROLE=?")); //$NON-NLS-1$
-					stmt.setString(1, r.getRoleName().toUpperCase());
-					rset = stmt.executeQuery();
-					if (!rset.next()) {
-						Role role = getServer().getRoleInfo(r.getRoleName(), getAgentName());
-						if ( runTriggers(SoffidObjectType.OBJECT_ROLE, SoffidObjectTrigger.PRE_INSERT, new com.soffid.iam.sync.engine.extobj.RoleExtensibleObject(role, getServer())) ) 
-						{
-							// Password protected or not
-							String command = "CREATE ROLE \"" + r.getRoleName().toUpperCase() + "\""; //$NON-NLS-1$ //$NON-NLS-2$
-							if (getServer().getRoleInfo(r.getRoleName(),
-									r.getSystem()).getPassword())
-								command = command + " IDENTIFIED BY \"" + //$NON-NLS-1$
-										rolePassword.getPassword().replaceAll("\"", PASSWORD_QUOTE_REPLACEMENT) + "\""; //$NON-NLS-1$
-							stmt2.execute(command);
-							// Revoke de mi mismo
-							stmt2.execute("REVOKE \"" + r.getRoleName().toUpperCase() + "\" FROM \"" + this.user.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
-							runTriggers(SoffidObjectType.OBJECT_ROLE, SoffidObjectTrigger.POST_INSERT, new com.soffid.iam.sync.engine.extobj.RoleExtensibleObject(role, getServer()));
-						} else {
-							if (debug)
-								log.info("Grant not executed due to pre-insert trigger failure");
+					Role ri = getServer().getRoleInfo(r.getRoleName(), r.getSystem());
+					if (ri.getCategory() == null || !"profile".equalsIgnoreCase(ri.getCategory())) {
+						if (rolesPorDefecto == null)
+							rolesPorDefecto = "\"" + r.getRoleName().toUpperCase() + "\""; //$NON-NLS-1$ //$NON-NLS-2$
+						else
+							rolesPorDefecto = rolesPorDefecto + ",\"" + //$NON-NLS-1$
+									r.getRoleName().toUpperCase() + "\""; //$NON-NLS-1$
+						stmt = sqlConnection
+								.prepareStatement(sentence("SELECT 1 FROM SYS.DBA_ROLES WHERE ROLE=?")); //$NON-NLS-1$
+						stmt.setString(1, r.getRoleName().toUpperCase());
+						rset = stmt.executeQuery();
+						if (!rset.next()) {
+							Role role = getServer().getRoleInfo(r.getRoleName(), getAgentName());
+							if ( runTriggers(SoffidObjectType.OBJECT_ROLE, SoffidObjectTrigger.PRE_INSERT, new com.soffid.iam.sync.engine.extobj.RoleExtensibleObject(role, getServer())) ) 
+							{
+								// Password protected or not
+								String command = "CREATE ROLE \"" + r.getRoleName().toUpperCase() + "\""; //$NON-NLS-1$ //$NON-NLS-2$
+								if (getServer().getRoleInfo(r.getRoleName(),
+										r.getSystem()).getPassword())
+									command = command + " IDENTIFIED BY \"" + //$NON-NLS-1$
+											rolePassword.getPassword().replaceAll("\"", PASSWORD_QUOTE_REPLACEMENT) + "\""; //$NON-NLS-1$
+								stmt2.execute(command);
+								// Revoke de mi mismo
+								stmt2.execute("REVOKE \"" + r.getRoleName().toUpperCase() + "\" FROM \"" + this.user.toUpperCase() + "\""); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+								runTriggers(SoffidObjectType.OBJECT_ROLE, SoffidObjectTrigger.POST_INSERT, new com.soffid.iam.sync.engine.extobj.RoleExtensibleObject(role, getServer()));
+							} else {
+								if (debug)
+									log.info("Grant not executed due to pre-insert trigger failure");
+							}
 						}
+						rset.close();
+						stmt.close();
 					}
-					rset.close();
-					stmt.close();
 				}
 			}
 
