@@ -38,6 +38,7 @@ import com.soffid.iam.sync.intf.ExtensibleObjectMgr;
 
 import es.caib.seycon.ng.comu.SoffidObjectTrigger;
 import es.caib.seycon.ng.exception.InternalErrorException;
+import es.caib.seycon.ng.exception.UnknownRoleException;
 import es.caib.seycon.ng.sync.bootstrap.NullSqlObjet;
 import es.caib.seycon.ng.sync.bootstrap.QueryHelper;
 import es.caib.seycon.ng.sync.intf.LogEntry;
@@ -797,8 +798,9 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 
 				String cmd = "CREATE USER \"" + user.toUpperCase() + "\" IDENTIFIED BY \"" + //$NON-NLS-1$ //$NON-NLS-2$
 						quotePassword(pass) + "\"";
-				if (defaultProfile != null && !defaultProfile.trim().isEmpty())
-					cmd += " PROFILE " + defaultProfile;
+				String profile = searchProfile(roles);
+				if (profile != null && !profile.trim().isEmpty())
+					cmd += " PROFILE " + profile;
 				if (temporaryTablespace != null && !temporaryTablespace.trim().isEmpty())
 					cmd += " TEMPORARY TABLESPACE " + temporaryTablespace;
 				if (defaultTablespace != null && !defaultTablespace.trim().isEmpty())
@@ -815,10 +817,18 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			} else {
 				if (! runTriggers(SoffidObjectType.OBJECT_USER, SoffidObjectTrigger.PRE_UPDATE, new UserExtensibleObject(account, usu, getServer()))) {
 					if (debug)
-						log.info("Ignoring creation of user "+account.getName()+" due to pre-insert trigger failure");
+						log.info("Ignoring update of user "+account.getName()+" due to pre-update trigger failure");
 					return;
 				}
-				
+				String profile = searchProfile(roles);
+				if (profile != null && !profile.trim().isEmpty()) {
+					String cmd = "ALTER USER \"" + user.toUpperCase() + "\" PROFILE \"" + //$NON-NLS-1$ //$NON-NLS-2$
+							profile + "\"";
+					stmt.close();
+					stmt = sqlConnection.prepareStatement(sentence(cmd));
+					stmt.execute();
+				}
+
 			}
 			// System.out.println ("Usuario "+user+" ya existe");
 			rset.close();
@@ -1052,6 +1062,15 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		}
 	}
 
+	private String searchProfile(Collection<RoleGrant> roles) throws InternalErrorException, UnknownRoleException {
+		for (RoleGrant rg : roles) {
+			Role r = getServer().getRoleInfo(rg.getRoleName(), rg.getSystem());
+			if (r.getCategory() != null && r.getCategory().equalsIgnoreCase("profile"))
+				return rg.getRoleName();
+		}
+		return defaultProfile;
+	}
+
 	protected String quotePassword(Password pass) {
 		return quotePassword(pass, false);
 	}
@@ -1177,9 +1196,11 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 	 * @param roles
 	 *            vector de roles
 	 * @return vector con nombres de grupo y role
+	 * @throws UnknownRoleException 
+	 * @throws InternalErrorException 
 	 */
 	public String[] concatUserGroupsAndRoles(Collection<Group> groups,
-			Collection<RoleGrant> roles) {
+			Collection<RoleGrant> roles) throws InternalErrorException, UnknownRoleException {
 		int i;
 		int j;
 
@@ -1193,7 +1214,9 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				concat.add(g.getName());
 		}
 		for (RoleGrant rg : roles) {
-			concat.add(rg.getRoleName());
+			Role r = getServer().getRoleInfo(rg.getRoleName(), rg.getSystem());
+			if (r.getCategory() == null || ! r.getCategory().equalsIgnoreCase("profile"))
+				concat.add(rg.getRoleName());
 		}
 
 		return concat.toArray(new String[concat.size()]);
@@ -1742,39 +1765,48 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			}
 			else
 			{
-				if ( runTriggers(SoffidObjectType.OBJECT_ACCOUNT, SoffidObjectTrigger.PRE_UPDATE, new AccountExtensibleObject(account, getServer())) )  {
-					Connection sqlConnection = getConnection();
-					PreparedStatement stmt = null;
-					stmt = sqlConnection
-							.prepareStatement(sentence("REVOKE CREATE SESSION FROM \"" + arg0.toUpperCase() + "\"")); //$NON-NLS-1$ //$NON-NLS-2$
-					try {
-						stmt.execute();
-					} catch (SQLException e) {
-						if (e.getErrorCode() != -1952 && !e.getMessage().contains("ORA-01952"))
-							handleSQLException(e);
-					} finally {
-						stmt.close();
-					}
-					stmt = sqlConnection
-							.prepareStatement(sentence("ALTER USER \"" + arg0.toUpperCase() + "\" ACCOUNT LOCK")); //$NON-NLS-1$ //$NON-NLS-2$
-					stmt.execute();
-					stmt.close();
-	
-					// Borramos las referencias de la tabla de control de acceso
-					if (Boolean.TRUE.equals( getSystem().getAccessControl())) {
+				Connection sqlConnection = getConnection();
+				PreparedStatement stmt = null;
+				stmt = sqlConnection
+						.prepareStatement(sentence("SELECT 1 FROM SYS.DBA_USERS WHERE USERNAME=?")); //$NON-NLS-1$
+				stmt.setString(1, arg0.toUpperCase());
+				ResultSet rset = stmt.executeQuery();
+				// Determinar si el usuario está o no activo
+				// Si no existe darlo de alta
+				if (rset.next()) {
+					if ( runTriggers(SoffidObjectType.OBJECT_ACCOUNT, SoffidObjectTrigger.PRE_UPDATE, new AccountExtensibleObject(account, getServer())) )  {
+						stmt = null;
 						stmt = sqlConnection
-								.prepareStatement(sentence("DELETE FROM SC_OR_ROLE WHERE SOR_GRANTEE='" //$NON-NLS-1$
-										+ arg0.toUpperCase() + "'")); //$NON-NLS-1$
+								.prepareStatement(sentence("REVOKE CREATE SESSION FROM \"" + arg0.toUpperCase() + "\"")); //$NON-NLS-1$ //$NON-NLS-2$
 						try {
 							stmt.execute();
 						} catch (SQLException e) {
-							handleSQLException(e);
+							if (e.getErrorCode() != -1952 && !e.getMessage().contains("ORA-01952"))
+								handleSQLException(e);
 						} finally {
 							stmt.close();
 						}
+						stmt = sqlConnection
+								.prepareStatement(sentence("ALTER USER \"" + arg0.toUpperCase() + "\" ACCOUNT LOCK")); //$NON-NLS-1$ //$NON-NLS-2$
+						stmt.execute();
+						stmt.close();
+		
+						// Borramos las referencias de la tabla de control de acceso
+						if (Boolean.TRUE.equals( getSystem().getAccessControl())) {
+							stmt = sqlConnection
+									.prepareStatement(sentence("DELETE FROM SC_OR_ROLE WHERE SOR_GRANTEE='" //$NON-NLS-1$
+											+ arg0.toUpperCase() + "'")); //$NON-NLS-1$
+							try {
+								stmt.execute();
+							} catch (SQLException e) {
+								handleSQLException(e);
+							} finally {
+								stmt.close();
+							}
+						}
+						runTriggers(SoffidObjectType.OBJECT_ACCOUNT, SoffidObjectTrigger.POST_UPDATE, new AccountExtensibleObject(account, getServer()));
+						removeRoles (sqlConnection, arg0);
 					}
-					runTriggers(SoffidObjectType.OBJECT_ACCOUNT, SoffidObjectTrigger.POST_UPDATE, new AccountExtensibleObject(account, getServer()));
-					removeRoles (sqlConnection, arg0);
 				}
 			}
 		} catch (Exception e) {
