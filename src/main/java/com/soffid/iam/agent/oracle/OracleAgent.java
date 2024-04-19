@@ -2276,6 +2276,36 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				} catch (Exception e) {
 				}
 		}
+		try {
+			Connection sqlConnection = getConnection();
+
+			stmt = sqlConnection
+					.prepareStatement(sentence("SELECT ROLE FROM SYS.DBA_PROFILES")); //$NON-NLS-1$
+			rset = stmt.executeQuery();
+			// Determinar si el usuario está o no activo
+			// Si no existe darlo de alta
+			while (rset.next()) {
+				roles.add(rset.getString(1));
+			}
+
+		} catch (SQLException e) {
+			handleSQLException(e);
+		} catch (Exception e) {
+			e.printStackTrace();
+			throw new InternalErrorException(
+					Messages.getString("OracleAgent.ErrorUpdatingUser"), e); //$NON-NLS-1$
+		} finally {
+			if (rset != null)
+				try {
+					rset.close();
+				} catch (Exception e) {
+				}
+			if (stmt != null)
+				try {
+					stmt.close();
+				} catch (Exception e) {
+				}
+		}
 		return roles;
 	}
 
@@ -2285,7 +2315,6 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		PreparedStatement stmt2 = null;
 		ResultSet rset = null;
 
-		// Control de acceso (tabla de roles)
 		try {
 			Connection sqlConnection = getConnection();
 
@@ -2300,6 +2329,48 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 				r.setSystem(getAgentName());
 				r.setName(rset.getString(1));
 				r.setDescription(rset.getString(1));
+				r.setCategory("ROLE");
+				return r;
+			}
+
+		} catch (SQLException e) {
+			handleSQLException(e);
+		} catch (Exception e) {
+			e.printStackTrace();
+			throw new InternalErrorException(
+					Messages.getString("OracleAgent.ErrorUpdatingUser"), e); //$NON-NLS-1$
+		} finally {
+			if (rset != null)
+				try {
+					rset.close();
+				} catch (Exception e) {
+				}
+			if (stmt != null)
+				try {
+					stmt.close();
+				} catch (Exception e) {
+				}
+			if (stmt2 != null)
+				try {
+					stmt2.close();
+				} catch (Exception e) {
+				}
+		}
+		try {
+			Connection sqlConnection = getConnection();
+
+			stmt = sqlConnection
+					.prepareStatement(sentence("SELECT ROLE FROM SYS.DBA_PROFILES WHERE PROFILE=?")); //$NON-NLS-1$
+			stmt.setString(1, roleName);
+			rset = stmt.executeQuery();
+			// Determinar si el usuario está o no activo
+			// Si no existe darlo de alta
+			if (rset.next()) {
+				Role r = new Role();
+				r.setSystem(getAgentName());
+				r.setName(rset.getString(1));
+				r.setDescription(rset.getString(1));
+				r.setCategory("PROFILE");
 				return r;
 			}
 
