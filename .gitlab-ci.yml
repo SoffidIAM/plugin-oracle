@@ -24,7 +24,7 @@ cache:
   stage: test
   script:
     - 'base64 -d $KEYSTORE_JKS >/tmp/keystore.p12'
-    - 'mvn $MAVEN_CLI_OPTS verify'
+    - 'mvn $MAVEN_CLI_OPTS -s $DEPLOYER_SETTINGS verify'
   except:
     variables:
       - $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
