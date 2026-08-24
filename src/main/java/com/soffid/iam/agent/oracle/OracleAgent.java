@@ -366,6 +366,8 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 						"  EXCEPTION \n"						+ //$NON-NLS-1$
 						"  when SEYCON_ACCESSCONTROL_EXCEPTION then \n"						+ //$NON-NLS-1$
 						"    RAISE_APPLICATION_ERROR (-20000, 'LOGON Error: You are not allowed to connect to this database '); \n"						+ //$NON-NLS-1$
+						"  when OTHERS then \n"						+ //$NON-NLS-1$
+						"    \n" + // Ignore
 						"  END; \n"; //$NON-NLS-1$
 				stmt = sqlConnection.prepareStatement(sentence(cmd, null));
 				stmt.execute();
@@ -1444,13 +1446,16 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 		PreparedStatement stmt2 = null;
 		ResultSet rset = null;
 
+		Connection sqlConnection = null;
 		try {
 			dispatcherInfo = getServer().getDispatcherAccessControl(
 					this.getSystem().getId());
 			// dispatcherInfo =
 			// getServer().getSystemInfo(this.getSystem().getName());
-			Connection sqlConnection = getConnection();
+			sqlConnection = getConnection();
 
+			sqlConnection.setAutoCommit(false);
+			
 			if (dispatcherInfo == null) {
 				setAccessControlActive(false); // desactivamos triggers
 				throw new Exception(Messages.getString("OracleAgent.282") //$NON-NLS-1$
@@ -1549,9 +1554,18 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 			} else { // Desactivamos los triggers
 				setAccessControlActive(false);
 			}
+			sqlConnection.commit();
 		} catch (SQLException e) {
+			if (sqlConnection != null) try {
+				sqlConnection.rollback();
+			} catch (Exception ee) {
+			}
 			handleSQLException(e);
 		} catch (Exception e) {
+			if (sqlConnection != null) try {
+				sqlConnection.rollback();
+			} catch (Exception ee) {
+			}
 			e.printStackTrace();
 			throw new InternalErrorException(
 					Messages.getString("OracleAgent.293"), e); //$NON-NLS-1$
@@ -1572,6 +1586,10 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 					stmt2.close();
 				} catch (Exception e) {
 				}
+			}
+			if (sqlConnection != null) try {
+				sqlConnection.setAutoCommit(false);
+			} catch (Exception ee) {
 			}
 		}
 	}
