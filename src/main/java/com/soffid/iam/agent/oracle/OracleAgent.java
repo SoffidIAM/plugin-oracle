@@ -367,7 +367,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 						"  when SEYCON_ACCESSCONTROL_EXCEPTION then \n"						+ //$NON-NLS-1$
 						"    RAISE_APPLICATION_ERROR (-20000, 'LOGON Error: You are not allowed to connect to this database '); \n"						+ //$NON-NLS-1$
 						"  when OTHERS then \n"						+ //$NON-NLS-1$
-						"    \n" + // Ignore
+						"    NULL;\n" + // Ignore
 						"  END; \n"; //$NON-NLS-1$
 				stmt = sqlConnection.prepareStatement(sentence(cmd, null));
 				stmt.execute();
