@@ -90,7 +90,7 @@ public class OracleAgent extends Agent implements UserMgr, RoleMgr,
 	static Hashtable hash = new Hashtable();
 
 	/* versió dels triggers del control d'accés */
-	private final static String VERSIO = "2.0"; //$NON-NLS-1$
+	private final static String VERSIO = "2.1"; //$NON-NLS-1$
 
 	/**
 	 * Constructor
